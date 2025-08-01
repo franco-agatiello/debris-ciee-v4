@@ -9,7 +9,7 @@ url_login = 'https://www.space-track.org/ajaxauth/login'
 # ** Tus credenciales de Space-Track.org **
 # Reemplaza 'TU_USUARIO' y 'TU_CONTRASEÑA' con tus datos reales
 username = 'franco.r.agatiello@gmail.com'
-password = 'francospacedebris2025'
+password = ''
 
 # Parámetros de la solicitud de login
 login_params = {
