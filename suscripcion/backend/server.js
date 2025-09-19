@@ -23,11 +23,9 @@ app.post('/api/estado-email', (req, res) => {
 // Endpoint: suscripción y envío de confirmación
 app.post('/api/suscripcion', (req, res) => {
     const { email, nombre, institucion, pais, perfil, consentimiento } = req.body;
-    // Generar token único
     const token = crypto.randomBytes(24).toString('hex');
     const fecha_registro = new Date().toISOString();
 
-    // Insertar o actualizar usuario en DB
     db.run(
         `INSERT OR REPLACE INTO suscriptores 
         (email, nombre, institucion, pais, perfil, consentimiento, confirmado, token, fecha_registro) 
@@ -36,7 +34,6 @@ app.post('/api/suscripcion', (req, res) => {
         function(err) {
             if (err) return res.status(500).json({ error: 'DB error' });
 
-            // Enviar mail de confirmación
             const confirmUrl = `${process.env.APP_URL}/api/confirmar?token=${token}`;
             emailer.enviarConfirmacion(email, nombre, confirmUrl)
                 .then(() => {
