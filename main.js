@@ -24,36 +24,6 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 }).addTo(mapa);
 capaPuntos = L.layerGroup().addTo(mapa);
 
-// Patch: envolver HTMLCanvasElement.prototype.getContext para pasar willReadFrequently
-// en contextos 2d cuando el navegador lo soporte. Esto es menos invasivo que
-// interceptar document.createElement y evita la advertencia de múltiples lecturas.
-;(function ensureWillReadFrequently(){
-  try {
-    if (typeof HTMLCanvasElement !== 'undefined' && HTMLCanvasElement.prototype) {
-      const proto = HTMLCanvasElement.prototype;
-      if (!proto.__willReadFrequentlyWrapped) {
-        const origGetContext = proto.getContext;
-        proto.getContext = function(contextId, options) {
-          // Sólo modificar para 2d
-          if (String(contextId) === '2d') {
-            try {
-              // Intentar con willReadFrequently
-              return origGetContext.call(this, contextId, { ...(options||{}), willReadFrequently: true });
-            } catch (e) {
-              // Fallback: sin opciones
-              return origGetContext.call(this, contextId, options);
-            }
-          }
-          return origGetContext.call(this, contextId, options);
-        };
-        proto.__willReadFrequentlyWrapped = true;
-      }
-    }
-  } catch (e) {
-    console.warn('No se pudo aplicar patch willReadFrequently en prototype:', e);
-  }
-})();
-
 (async function cargarDatos() {
   try {
     const r = await fetch("data/debris.json");
@@ -211,65 +181,37 @@ function actualizarMapa(){
     });
     mostrarLeyendaPuntos();
   } else {
-    console.debug('Actualizando mapa en modo calor. Registros filtrados:', datosFiltrados.length);
-    // Extraer lat/lon de forma robusta (soporta distintos campos como lugar_caida.lat o lat)
-    const heatData = datosFiltrados.map(d => {
-      const lat = getLat(d);
-      const lon = getLon(d);
-      if (lat === null || lon === null) return null;
-      return [lat, lon];
-    }).filter(Boolean);
-    console.debug('Datos con lat/lon para heatmap:', heatData.length, heatData.slice(0,10));
+    // Construcción simplificada y robusta del heatmap:
+    // - Agrupa puntos muy cercanos (redondeando) para evitar demasiados puntos idénticos
+    // - Calcula un peso (intensidad) a partir del conteo por celda y lo normaliza entre 0..1
+    const bucket = {};
+    datosFiltrados.forEach(d => {
+      const lat = getLat(d), lon = getLon(d);
+      if (lat === null || lon === null) return;
+      // redondeo a 3 decimales (~100m a nivel del mapa) para agrupar puntos próximos
+      const key = lat.toFixed(3) + '|' + lon.toFixed(3);
+      bucket[key] = (bucket[key] || 0) + 1;
+    });
+    const counts = Object.values(bucket);
+    const maxCount = counts.length ? Math.max(...counts) : 1;
+    const heatData = Object.keys(bucket).map(k => {
+      const [latS, lonS] = k.split('|');
+      const lat = Number(latS), lon = Number(lonS);
+      // intensidad normalizada (0..1)
+      const intensity = Math.min(1, bucket[k] / Math.max(1, maxCount));
+      return [lat, lon, intensity];
+    });
 
     if (heatData.length) {
-      try {
-        // Crear pane dedicado para el heatmap con z-index alto (si no existe)
-        try {
-          if (!mapa.getPane('heatmapPane')) mapa.createPane('heatmapPane');
-          const heatPane = mapa.getPane('heatmapPane');
-          heatPane.style.zIndex = 650; // sobre overlays normales
-          heatPane.style.pointerEvents = 'none';
-        } catch (pErr) {
-          console.warn('No se pudo crear pane personalizado para heatmap:', pErr);
-        }
-
-        // Crear la capa de calor
-        capaCalor = L.heatLayer(heatData, {
-          radius: 25,
-          blur: 20,
-          minOpacity: 0.45,
-          max: 1.0,
-          gradient: {0.1:'blue',0.3:'lime',0.6:'yellow',1.0:'red'}
-        }).addTo(mapa);
-
-        // Si el plugin expone el canvas interno lo movemos al pane personalizado
-        try {
-          const heatPane = mapa.getPane('heatmapPane');
-          if (capaCalor && capaCalor._canvas && heatPane) {
-            heatPane.appendChild(capaCalor._canvas);
-            capaCalor._canvas.style.zIndex = 650;
-            capaCalor._canvas.style.pointerEvents = 'none';
-            capaCalor._canvas.style.mixBlendMode = 'screen';
-            console.debug('Heatmap canvas movido a pane heatmapPane');
-          }
-        } catch (moveErr) {
-          console.warn('No se pudo mover canvas del heatmap al pane personalizado:', moveErr);
-        }
-      } catch (err) {
-        console.error('Error al crear capa de calor:', err);
-      }
-
-      // Marcadores temporales para confirmar que los puntos existen y se ven en el mapa
-      try {
-        const tempMarkers = heatData.slice(0,10).map(([lat,lon])=> L.circleMarker([lat,lon],{radius:4,color:'#ff5722',fillOpacity:0.9}).addTo(mapa));
-        setTimeout(()=>{ tempMarkers.forEach(m=>m.remove()); }, 6000);
-      } catch(e) {
-        console.warn('No se pudieron añadir marcadores temporales de debug:', e);
-      }
-    } else {
-      console.info('No hay puntos válidos para el heatmap (heatData.length === 0)');
+      // Opciones más conservadoras y compatibles con leaflet.heat
+      capaCalor = L.heatLayer(heatData, {
+        radius: 25,
+        blur: 15,
+        minOpacity: 0.25,
+        max: 1,
+        gradient: { 0.1: 'blue', 0.4: 'lime', 0.7: 'yellow', 1.0: 'red' }
+      }).addTo(mapa);
     }
-
     mostrarLeyendaCalor();
   }
 }
