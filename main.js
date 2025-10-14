@@ -24,35 +24,33 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 }).addTo(mapa);
 capaPuntos = L.layerGroup().addTo(mapa);
 
-// Patch: crear una versión de getContext que incluya willReadFrequently cuando esté disponible.
-// Esto evita la advertencia de "Multiple readback operations" que lanza leaflet-heat.
+// Patch: envolver HTMLCanvasElement.prototype.getContext para pasar willReadFrequently
+// en contextos 2d cuando el navegador lo soporte. Esto es menos invasivo que
+// interceptar document.createElement y evita la advertencia de múltiples lecturas.
 ;(function ensureWillReadFrequently(){
   try {
-    const origCreateElement = document.createElement.bind(document);
-    // Interceptamos la creación de canvas para forzar willReadFrequently en getContext
-    document.createElement = function(tagName) {
-      const el = origCreateElement(tagName);
-      if (tagName && tagName.toLowerCase() === 'canvas' && el.getContext) {
-        const origGetContext = el.getContext.bind(el);
-        el.getContext = function(contextId, options) {
-          // Si ya se pasa willReadFrequently, respetar.
-          if (options && typeof options === 'object' && 'willReadFrequently' in options) {
-            return origGetContext(contextId, options);
+    if (typeof HTMLCanvasElement !== 'undefined' && HTMLCanvasElement.prototype) {
+      const proto = HTMLCanvasElement.prototype;
+      if (!proto.__willReadFrequentlyWrapped) {
+        const origGetContext = proto.getContext;
+        proto.getContext = function(contextId, options) {
+          // Sólo modificar para 2d
+          if (String(contextId) === '2d') {
+            try {
+              // Intentar con willReadFrequently
+              return origGetContext.call(this, contextId, { ...(options||{}), willReadFrequently: true });
+            } catch (e) {
+              // Fallback: sin opciones
+              return origGetContext.call(this, contextId, options);
+            }
           }
-          // Intentar pasar willReadFrequently cuando sea 2d y el navegador lo soporte
-          try {
-            return origGetContext(contextId, { ...(options||{}), willReadFrequently: true });
-          } catch (e) {
-            // Fallback: intentar sin opciones
-            return origGetContext(contextId);
-          }
+          return origGetContext.call(this, contextId, options);
         };
+        proto.__willReadFrequentlyWrapped = true;
       }
-      return el;
-    };
+    }
   } catch (e) {
-    // Si algo falla, no romper la app
-    console.warn('No se pudo aplicar patch willReadFrequently:', e);
+    console.warn('No se pudo aplicar patch willReadFrequently en prototype:', e);
   }
 })();
 
@@ -213,12 +211,27 @@ function actualizarMapa(){
     });
     mostrarLeyendaPuntos();
   } else {
+    console.debug('Actualizando mapa en modo calor. Registros filtrados:', datosFiltrados.length);
     const heatData = datosFiltrados.map(d=>[getLat(d),getLon(d)]).filter(([lat,lon])=>lat!==null && lon!==null);
+    console.debug('Datos con lat/lon para heatmap:', heatData.length, heatData.slice(0,10));
     if(heatData.length){
-      capaCalor=L.heatLayer(heatData,{
-        radius:30, blur:25, minOpacity:0.4, max:30,
-        gradient:{0.1:'blue',0.3:'lime',0.6:'yellow',1.0:'red'}
-      }).addTo(mapa);
+      try {
+        capaCalor=L.heatLayer(heatData,{
+          radius:30, blur:25, minOpacity:0.4, max:30,
+          gradient:{0.1:'blue',0.3:'lime',0.6:'yellow',1.0:'red'}
+        }).addTo(mapa);
+      } catch (err) {
+        console.error('Error al crear capa de calor:', err);
+      }
+      // Marcadores temporales para confirmar que los puntos existen y se ven en el mapa
+      try {
+        const tempMarkers = heatData.slice(0,10).map(([lat,lon])=> L.circleMarker([lat,lon],{radius:4,color:'#ff5722',fillOpacity:0.9}).addTo(mapa));
+        setTimeout(()=>{ tempMarkers.forEach(m=>m.remove()); }, 6000);
+      } catch(e) {
+        console.warn('No se pudieron añadir marcadores temporales de debug:', e);
+      }
+    } else {
+      console.info('No hay puntos válidos para el heatmap (heatData.length === 0)');
     }
     mostrarLeyendaCalor();
   }
