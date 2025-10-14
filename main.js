@@ -24,6 +24,38 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 }).addTo(mapa);
 capaPuntos = L.layerGroup().addTo(mapa);
 
+// Patch: crear una versión de getContext que incluya willReadFrequently cuando esté disponible.
+// Esto evita la advertencia de "Multiple readback operations" que lanza leaflet-heat.
+;(function ensureWillReadFrequently(){
+  try {
+    const origCreateElement = document.createElement.bind(document);
+    // Interceptamos la creación de canvas para forzar willReadFrequently en getContext
+    document.createElement = function(tagName) {
+      const el = origCreateElement(tagName);
+      if (tagName && tagName.toLowerCase() === 'canvas' && el.getContext) {
+        const origGetContext = el.getContext.bind(el);
+        el.getContext = function(contextId, options) {
+          // Si ya se pasa willReadFrequently, respetar.
+          if (options && typeof options === 'object' && 'willReadFrequently' in options) {
+            return origGetContext(contextId, options);
+          }
+          // Intentar pasar willReadFrequently cuando sea 2d y el navegador lo soporte
+          try {
+            return origGetContext(contextId, { ...(options||{}), willReadFrequently: true });
+          } catch (e) {
+            // Fallback: intentar sin opciones
+            return origGetContext(contextId);
+          }
+        };
+      }
+      return el;
+    };
+  } catch (e) {
+    // Si algo falla, no romper la app
+    console.warn('No se pudo aplicar patch willReadFrequently:', e);
+  }
+})();
+
 (async function cargarDatos() {
   try {
     const r = await fetch("data/debris.json");
