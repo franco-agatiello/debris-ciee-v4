@@ -212,17 +212,53 @@ function actualizarMapa(){
     mostrarLeyendaPuntos();
   } else {
     console.debug('Actualizando mapa en modo calor. Registros filtrados:', datosFiltrados.length);
-    const heatData = datosFiltrados.map(d=>[getLat(d),getLon(d)]).filter(([lat,lon])=>lat!==null && lon!==null);
+    // Extraer lat/lon de forma robusta (soporta distintos campos como lugar_caida.lat o lat)
+    const heatData = datosFiltrados.map(d => {
+      const lat = getLat(d);
+      const lon = getLon(d);
+      if (lat === null || lon === null) return null;
+      return [lat, lon];
+    }).filter(Boolean);
     console.debug('Datos con lat/lon para heatmap:', heatData.length, heatData.slice(0,10));
-    if(heatData.length){
+
+    if (heatData.length) {
       try {
-        capaCalor=L.heatLayer(heatData,{
-          radius:30, blur:25, minOpacity:0.4, max:30,
-          gradient:{0.1:'blue',0.3:'lime',0.6:'yellow',1.0:'red'}
+        // Crear pane dedicado para el heatmap con z-index alto (si no existe)
+        try {
+          if (!mapa.getPane('heatmapPane')) mapa.createPane('heatmapPane');
+          const heatPane = mapa.getPane('heatmapPane');
+          heatPane.style.zIndex = 650; // sobre overlays normales
+          heatPane.style.pointerEvents = 'none';
+        } catch (pErr) {
+          console.warn('No se pudo crear pane personalizado para heatmap:', pErr);
+        }
+
+        // Crear la capa de calor
+        capaCalor = L.heatLayer(heatData, {
+          radius: 25,
+          blur: 20,
+          minOpacity: 0.45,
+          max: 1.0,
+          gradient: {0.1:'blue',0.3:'lime',0.6:'yellow',1.0:'red'}
         }).addTo(mapa);
+
+        // Si el plugin expone el canvas interno lo movemos al pane personalizado
+        try {
+          const heatPane = mapa.getPane('heatmapPane');
+          if (capaCalor && capaCalor._canvas && heatPane) {
+            heatPane.appendChild(capaCalor._canvas);
+            capaCalor._canvas.style.zIndex = 650;
+            capaCalor._canvas.style.pointerEvents = 'none';
+            capaCalor._canvas.style.mixBlendMode = 'screen';
+            console.debug('Heatmap canvas movido a pane heatmapPane');
+          }
+        } catch (moveErr) {
+          console.warn('No se pudo mover canvas del heatmap al pane personalizado:', moveErr);
+        }
       } catch (err) {
         console.error('Error al crear capa de calor:', err);
       }
+
       // Marcadores temporales para confirmar que los puntos existen y se ven en el mapa
       try {
         const tempMarkers = heatData.slice(0,10).map(([lat,lon])=> L.circleMarker([lat,lon],{radius:4,color:'#ff5722',fillOpacity:0.9}).addTo(mapa));
@@ -233,6 +269,7 @@ function actualizarMapa(){
     } else {
       console.info('No hay puntos válidos para el heatmap (heatData.length === 0)');
     }
+
     mostrarLeyendaCalor();
   }
 }
