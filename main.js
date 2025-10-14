@@ -211,6 +211,25 @@ function actualizarMapa(){
         max: 1,
         gradient: { 0.1: 'blue', 0.4: 'lime', 0.7: 'yellow', 1.0: 'red' }
       }).addTo(mapa);
+
+      // Fix: obtener el contexto 2D con willReadFrequently para evitar advertencias
+      (function trySetWillReadFrequently(retry){
+        try {
+          if (capaCalor && capaCalor._canvas && capaCalor._canvas.getContext) {
+            const ctx = capaCalor._canvas.getContext('2d', { willReadFrequently: true });
+            if (ctx) {
+              capaCalor._ctx = ctx;
+              return;
+            }
+          }
+        } catch (e) {
+          // ignore, we'll either retry or bail
+        }
+        // si no estaba listo y aún no reintentamos, hacerlo tras 200ms
+        if (!retry) {
+          setTimeout(()=>trySetWillReadFrequently(true), 200);
+        }
+      })(false);
     }
     mostrarLeyendaCalor();
   }
