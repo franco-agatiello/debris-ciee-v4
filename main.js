@@ -1,3 +1,4 @@
+
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
@@ -6,6 +7,7 @@ const LOGO_SRC = "img/Captura de pantalla 2025-06-06 211123.png";
 const EARTH_IMG_SRC = "img/earthmap1k.jpg";
 const radioTierra = 6371; // km
 
+// Icons
 const iconoAzul = L.icon({iconUrl:'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',iconSize:[18,29],iconAnchor:[9,29],popupAnchor:[1,-30]});
 const iconoVerde = L.icon({iconUrl:'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',iconSize:[18,29],iconAnchor:[9,29],popupAnchor:[1,-30]});
 const iconoRojo = L.icon({iconUrl:'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',iconSize:[18,29],iconAnchor:[9,29],popupAnchor:[1,-30]});
@@ -16,6 +18,52 @@ let mapa, capaPuntos, capaCalor, modo = "puntos";
 let leyendaPuntos, leyendaCalor;
 let mapaTrayectoria = null;
 
+// ------------------ HEAT LAYER MONKEY-PATCH ------------------
+// Ejecutar lo antes posible en main.js para interceptar onAdd de L.HeatLayer
+(function ensureHeatLayerWillReadFrequently() {
+  try {
+    if (!window.L || !L.HeatLayer || !L.HeatLayer.prototype) {
+      // si la libreria aún no está cargada, reintentar después (corto)
+      setTimeout(ensureHeatLayerWillReadFrequently, 50);
+      return;
+    }
+    const proto = L.HeatLayer.prototype;
+    if (!proto.__willReadFreqPatched) {
+      const origOnAdd = proto.onAdd;
+      proto.onAdd = function(map) {
+        // Lógica original (crea canvas internamente)
+        origOnAdd.call(this, map);
+        try {
+          if (this._canvas && this._canvas.getContext) {
+            // Intentamos obtener contexto con willReadFrequently: true
+            try {
+              const ctx = this._canvas.getContext('2d', { willReadFrequently: true });
+              if (ctx) {
+                this._ctx = ctx;
+                console.debug("heat: contexto reasignado con willReadFrequently (onAdd)");
+              } else {
+                // fallback al contexto sin opciones (ya existente)
+                this._ctx = this._canvas.getContext('2d') || this._ctx;
+              }
+            } catch (e) {
+              // navegador no soporta la opción, usamos contexto por defecto
+              this._ctx = this._canvas.getContext('2d') || this._ctx;
+            }
+          }
+        } catch (err) {
+          // silencioso: no queremos romper la inicialización
+          console.debug("heat: error al reasignar contexto onAdd", err);
+        }
+      };
+      proto.__willReadFreqPatched = true;
+    }
+  } catch (err) {
+    // si ocurre algo raro, no bloquear la app
+    console.debug("heat: no se pudo aplicar monkey-patch inmediato", err);
+  }
+})();
+// -------------------------------------------------------------
+
 mapa = L.map('map', { worldCopyJump: true }).setView([0,0], 2);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 8,
@@ -24,12 +72,14 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 }).addTo(mapa);
 capaPuntos = L.layerGroup().addTo(mapa);
 
+// datos iniciales: cargar JSON
 (async function cargarDatos() {
   try {
     const r = await fetch("data/debris.json");
     debris = await r.json();
   } catch(e) {
     debris = [];
+    console.warn("No se pudo cargar data/debris.json:", e);
   }
   poblarDropdown("dropdownPaisMenu", "dropdownPaisBtn", valoresUnicos(debris.map(d=>d.pais)), "Todos");
   poblarDropdown("dropdownClaseMenu", "dropdownClaseBtn", valoresUnicos(debris.map(d=>d.clase_objeto)), "Todas");
@@ -71,24 +121,24 @@ function poblarDropdown(menuId, btnId, items, etiquetaTodos="Todos"){
 }
 
 function obtenerFiltros(){
-  const constAll = document.getElementById('const-all').checked;
-  const constYes = document.getElementById('const-yes').checked;
-  const constNo  = document.getElementById('const-no').checked;
+  const constAll = document.getElementById('const-all') ? document.getElementById('const-all').checked : true;
+  const constYes = document.getElementById('const-yes') ? document.getElementById('const-yes').checked : false;
+  const constNo  = document.getElementById('const-no') ? document.getElementById('const-no').checked : false;
 
   return {
-    pais: document.getElementById("dropdownPaisBtn").dataset.value ?? "",
-    fechaDesde: document.getElementById("fecha-desde").value,
-    fechaHasta: document.getElementById("fecha-hasta").value,
-    inclinacionMin: document.getElementById("inclinacion-min").value,
-    inclinacionMax: document.getElementById("inclinacion-max").value,
-    masaOrbitaMin: document.getElementById("masa-orbita-min").value,
-    masaOrbitaMax: document.getElementById("masa-orbita-max").value,
-    clase_objeto: document.getElementById("dropdownClaseBtn").dataset.value ?? "",
+    pais: document.getElementById("dropdownPaisBtn") ? document.getElementById("dropdownPaisBtn").dataset.value ?? "" : "",
+    fechaDesde: document.getElementById("fecha-desde") ? document.getElementById("fecha-desde").value : "",
+    fechaHasta: document.getElementById("fecha-hasta") ? document.getElementById("fecha-hasta").value : "",
+    inclinacionMin: document.getElementById("inclinacion-min") ? document.getElementById("inclinacion-min").value : "",
+    inclinacionMax: document.getElementById("inclinacion-max") ? document.getElementById("inclinacion-max").value : "",
+    masaOrbitaMin: document.getElementById("masa-orbita-min") ? document.getElementById("masa-orbita-min").value : "",
+    masaOrbitaMax: document.getElementById("masa-orbita-max") ? document.getElementById("masa-orbita-max").value : "",
+    clase_objeto: document.getElementById("dropdownClaseBtn") ? document.getElementById("dropdownClaseBtn").dataset.value ?? "" : "",
     constelacion: constAll ? "todas" : (constYes ? "si" : "no"),
-    latMin: document.getElementById("lat-min").value,
-    latMax: document.getElementById("lat-max").value,
-    lonMin: document.getElementById("lon-min").value,
-    lonMax: document.getElementById("lon-max").value,
+    latMin: document.getElementById("lat-min") ? document.getElementById("lat-min").value : "",
+    latMax: document.getElementById("lat-max") ? document.getElementById("lat-max").value : "",
+    lonMin: document.getElementById("lon-min") ? document.getElementById("lon-min").value : "",
+    lonMax: document.getElementById("lon-max") ? document.getElementById("lon-max").value : "",
   };
 }
 
@@ -136,7 +186,7 @@ function filtrarDatos(){
 }
 
 function marcadorPorFecha(fecha) {
-  const year = parseInt(fecha?.slice(0,4),10);
+  const year = parseInt(String(fecha ?? "").slice(0,4),10);
   if (year >= 2004 && year <= 2010) return iconoAzul;
   if (year >= 2011 && year <= 2017) return iconoVerde;
   if (year >= 2018 && year <= 2025) return iconoRojo;
@@ -162,12 +212,15 @@ function popupContenidoDebris(d,index){
 
 function actualizarMapa(){
   const datosFiltrados = filtrarDatos();
-  document.getElementById("countSpan").textContent = String(datosFiltrados.length);
-  if(capaPuntos){capaPuntos.clearLayers();}
-  if(capaCalor && mapa.hasLayer(capaCalor)){mapa.removeLayer(capaCalor); capaCalor=null;}
-  if(leyendaPuntos) leyendaPuntos.remove();
-  if(leyendaCalor) leyendaCalor.remove();
+  document.getElementById("countSpan") && (document.getElementById("countSpan").textContent = String(datosFiltrados.length));
+
+  if(capaPuntos){ try{ capaPuntos.clearLayers(); mapa.removeLayer(capaPuntos); }catch(e){} capaPuntos=null; }
+  if(capaCalor && mapa.hasLayer(capaCalor)){ mapa.removeLayer(capaCalor); capaCalor=null; }
+  if(leyendaPuntos) { try{ leyendaPuntos.remove(); }catch(e){} leyendaPuntos=null; }
+  if(leyendaCalor)  { try{ leyendaCalor.remove(); }catch(e){}  leyendaCalor=null; }
+
   if(modo==="puntos"){
+    capaPuntos=L.layerGroup();
     datosFiltrados.forEach((d,i)=>{
       const lat = getLat(d), lon = getLon(d);
       if (lat===null || lon===null) return;
@@ -179,58 +232,67 @@ function actualizarMapa(){
       });
       capaPuntos.addLayer(marker);
     });
+    capaPuntos.addTo(mapa);
     mostrarLeyendaPuntos();
   } else {
-    // Construcción simplificada y robusta del heatmap:
-    // - Agrupa puntos muy cercanos (redondeando) para evitar demasiados puntos idénticos
-    // - Calcula un peso (intensidad) a partir del conteo por celda y lo normaliza entre 0..1
+    // Construcción del heatData con intensidad y umbral mínimo
     const bucket = {};
     datosFiltrados.forEach(d => {
       const lat = getLat(d), lon = getLon(d);
       if (lat === null || lon === null) return;
-      // redondeo a 3 decimales (~100m a nivel del mapa) para agrupar puntos próximos
       const key = lat.toFixed(3) + '|' + lon.toFixed(3);
       bucket[key] = (bucket[key] || 0) + 1;
     });
     const counts = Object.values(bucket);
     const maxCount = counts.length ? Math.max(...counts) : 1;
+    const minIntensity = 0.05; // umbral mínimo para que no quede 0
     const heatData = Object.keys(bucket).map(k => {
       const [latS, lonS] = k.split('|');
       const lat = Number(latS), lon = Number(lonS);
-      // intensidad normalizada (0..1)
-      const intensity = Math.min(1, bucket[k] / Math.max(1, maxCount));
+      // intensidad normalizada (0..1) con umbral
+      const raw = bucket[k] / Math.max(1, maxCount);
+      const intensity = Math.min(1, Math.max(minIntensity, raw));
       return [lat, lon, intensity];
     });
 
+    console.debug("heatData length:", heatData.length, "maxCount:", maxCount);
+
     if (heatData.length) {
-      // Opciones más conservadoras y compatibles con leaflet.heat
-      capaCalor = L.heatLayer(heatData, {
-        radius: 25,
-        blur: 15,
-        minOpacity: 0.25,
+      // Opciones por defecto más visibles/compatibles
+      const heatOptions = {
+        radius: 30,
+        blur: 20,
+        minOpacity: 0.35,
         max: 1,
         gradient: { 0.1: 'blue', 0.4: 'lime', 0.7: 'yellow', 1.0: 'red' }
-      }).addTo(mapa);
+      };
 
-      // Fix: obtener el contexto 2D con willReadFrequently para evitar advertencias
+      capaCalor = L.heatLayer(heatData, heatOptions).addTo(mapa);
+
+      // Asegurar que el canvas use willReadFrequently si es posible (fallback corto)
       (function trySetWillReadFrequently(retry){
         try {
           if (capaCalor && capaCalor._canvas && capaCalor._canvas.getContext) {
-            const ctx = capaCalor._canvas.getContext('2d', { willReadFrequently: true });
-            if (ctx) {
-              capaCalor._ctx = ctx;
-              return;
+            try {
+              capaCalor._ctx = capaCalor._canvas.getContext('2d', { willReadFrequently: true }) || capaCalor._ctx;
+              console.debug("heat: contexto reasignado con willReadFrequently (post-add)");
+            } catch (e) {
+              // no soportado
             }
+            // asegurar z-index si está oculto
+            try {
+              capaCalor._canvas.style.zIndex = capaCalor._canvas.style.zIndex || 650;
+              capaCalor._canvas.style.pointerEvents = 'none';
+            } catch(e){}
+            return;
           }
         } catch (e) {
-          // ignore, we'll either retry or bail
+          // ignore
         }
-        // si no estaba listo y aún no reintentamos, hacerlo tras 200ms
-        if (!retry) {
-          setTimeout(()=>trySetWillReadFrequently(true), 200);
-        }
+        if (!retry) setTimeout(()=>trySetWillReadFrequently(true), 50);
       })(false);
     }
+
     mostrarLeyendaCalor();
   }
 }
@@ -266,7 +328,7 @@ function mostrarLeyendaCalor(){
 // --- Trayectoria ---
 window.mostrarTrayectoria = function(index) {
   const d = filtrarDatos()[index];
-  if (!d.tle1 || !d.tle2) return alert("No hay TLE para este debris.");
+  if (!d || !d.tle1 || !d.tle2) return alert("No hay TLE para este debris.");
 
   let mensajeDiferencia = '';
   if (d.dias_diferencia !== undefined && d.dias_diferencia !== null) {
@@ -336,7 +398,7 @@ window.mostrarTrayectoria = function(index) {
 // --- Órbita 3D ---
 window.mostrarOrbita3D = function(index) {
   const d = filtrarDatos()[index];
-  if (!d.tle1 || !d.tle2) {
+  if (!d || !d.tle1 || !d.tle2) {
     return alert("No hay TLE para este debris.");
   }
 
@@ -429,14 +491,26 @@ function listeners(){
   [
     'fecha-desde','fecha-hasta','inclinacion-min','inclinacion-max',
     'masa-orbita-min','masa-orbita-max','lat-min','lat-max','lon-min','lon-max'
-  ].forEach(id => document.getElementById(id).addEventListener('change', actualizarMapa));
-  document.getElementById('modo-puntos').addEventListener('click', ()=>{ modo="puntos"; actualizarMapa(); });
-  document.getElementById('modo-calor').addEventListener('click', ()=>{ modo="calor"; actualizarMapa(); });
-  document.getElementById('btn-select-rect').addEventListener('click', (e)=>{ e.preventDefault(); activarSeleccionRect(); });
-  document.getElementById('btn-clear-rect').addEventListener('click', (e)=>{ e.preventDefault(); limpiarSeleccionRect(); });
-  ['const-all','const-yes','const-no'].forEach(id=>document.getElementById(id).addEventListener('change', actualizarMapa));
-  document.getElementById('btn-informe').addEventListener('click', abrirInforme);
-  document.getElementById('dlPDF').addEventListener('click', exportInformePDF);
+  ].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', actualizarMapa);
+  });
+  const modoP = document.getElementById('modo-puntos');
+  const modoC = document.getElementById('modo-calor');
+  if (modoP) modoP.addEventListener('click', ()=>{ modo="puntos"; actualizarMapa(); });
+  if (modoC) modoC.addEventListener('click', ()=>{ modo="calor"; actualizarMapa(); });
+  const btnSelect = document.getElementById('btn-select-rect');
+  if (btnSelect) btnSelect.addEventListener('click', (e)=>{ e.preventDefault(); activarSeleccionRect(); });
+  const btnClear = document.getElementById('btn-clear-rect');
+  if (btnClear) btnClear.addEventListener('click', (e)=>{ e.preventDefault(); limpiarSeleccionRect(); });
+  ['const-all','const-yes','const-no'].forEach(id=>{
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', actualizarMapa);
+  });
+  const btnInforme = document.getElementById('btn-informe');
+  if (btnInforme) btnInforme.addEventListener('click', abrirInforme);
+  const dlPDF = document.getElementById('dlPDF');
+  if (dlPDF) dlPDF.addEventListener('click', exportInformePDF);
 }
 
 // --- Selección rectangular ---
@@ -444,7 +518,8 @@ let rectSeleccion = null, seleccionActiva = false, startLL = null;
 function activarSeleccionRect(){
   if (seleccionActiva) return;
   seleccionActiva = true;
-  document.getElementById('map').style.cursor = 'crosshair';
+  const mapEl = document.getElementById('map');
+  if (mapEl) mapEl.style.cursor = 'crosshair';
   mapa.dragging.disable();
   let moving = false;
   function onDown(e){ startLL = e.latlng; moving = true; if (rectSeleccion) { mapa.removeLayer(rectSeleccion); rectSeleccion=null; } }
@@ -457,13 +532,13 @@ function activarSeleccionRect(){
   function onUp(){
     moving = false; seleccionActiva = false; mapa.dragging.enable();
     mapa.off('mousedown', onDown); mapa.off('mousemove', onMove); mapa.off('mouseup', onUp);
-    document.getElementById('map').style.cursor = '';
+    if (mapEl) mapEl.style.cursor = '';
     if (!rectSeleccion) return;
     const b = rectSeleccion.getBounds();
-    document.getElementById('lat-min').value = Math.min(b.getSouth(), b.getNorth()).toFixed(4);
-    document.getElementById('lat-max').value = Math.max(b.getSouth(), b.getNorth()).toFixed(4);
-    document.getElementById('lon-min').value = Math.min(b.getWest(), b.getEast()).toFixed(4);
-    document.getElementById('lon-max').value = Math.max(b.getWest(), b.getEast()).toFixed(4);
+    document.getElementById('lat-min') && (document.getElementById('lat-min').value = Math.min(b.getSouth(), b.getNorth()).toFixed(4));
+    document.getElementById('lat-max') && (document.getElementById('lat-max').value = Math.max(b.getSouth(), b.getNorth()).toFixed(4));
+    document.getElementById('lon-min') && (document.getElementById('lon-min').value = Math.min(b.getWest(), b.getEast()).toFixed(4));
+    document.getElementById('lon-max') && (document.getElementById('lon-max').value = Math.max(b.getWest(), b.getEast()).toFixed(4));
     actualizarMapa();
   }
   mapa.on('mousedown', onDown);
@@ -472,7 +547,7 @@ function activarSeleccionRect(){
 }
 function limpiarSeleccionRect(){
   if (rectSeleccion) { mapa.removeLayer(rectSeleccion); rectSeleccion=null; }
-  ['lat-min','lat-max','lon-min','lon-max'].forEach(id=>document.getElementById(id).value='');
+  ['lat-min','lat-max','lon-min','lon-max'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
   actualizarMapa();
 }
 
@@ -716,3 +791,18 @@ function drawLeyendaAnios(canvas, ctx) {
   });
   ctx.restore();
 }
+
+document.addEventListener("DOMContentLoaded", ()=>{
+  // asegúrate de que los elementos del DOM existan (p. ej. countSpan)
+  listeners();
+  // si los datos ya se cargaron antes del DOMContentLoaded, cargarDatos() ya corre; de lo contrario, inicializamos el mapa si aún no existe
+  try {
+    if (!mapa) {
+      mapa = L.map('map', { worldCopyJump: true }).setView([0,0], 2);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 8,
+        attribution: '&copy; OpenStreetMap'
+      }).addTo(mapa);
+    }
+  } catch(e){}
+});
