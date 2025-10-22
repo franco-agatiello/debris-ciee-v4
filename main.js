@@ -24,6 +24,33 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 }).addTo(mapa);
 capaPuntos = L.layerGroup().addTo(mapa);
 
+// ================== Monkey-patch para L.HeatLayer ==================
+// Asegurar que el canvas 2D use willReadFrequently para evitar advertencias
+// y mejorar rendimiento cuando leaflet.heat llama getImageData repetidamente.
+(function patchHeatLayerForWillReadFrequently() {
+  if (typeof L !== 'undefined' && L.HeatLayer && L.HeatLayer.prototype) {
+    const originalOnAdd = L.HeatLayer.prototype.onAdd;
+    L.HeatLayer.prototype.onAdd = function(map) {
+      // Llamar al método original para crear el canvas
+      const result = originalOnAdd.call(this, map);
+      // Intentar reasignar el contexto 2D con willReadFrequently
+      try {
+        if (this._canvas && typeof this._canvas.getContext === 'function') {
+          const newCtx = this._canvas.getContext('2d', { willReadFrequently: true });
+          if (newCtx) {
+            this._ctx = newCtx;
+            console.debug('[HeatLayer patch] Canvas context reassigned with willReadFrequently: true');
+          }
+        }
+      } catch (err) {
+        // Navegadores antiguos pueden no soportar willReadFrequently, ignorar silenciosamente
+        console.debug('[HeatLayer patch] Could not set willReadFrequently (browser may not support it):', err.message);
+      }
+      return result;
+    };
+  }
+})();
+
 (async function cargarDatos() {
   try {
     const r = await fetch("data/debris.json");
@@ -184,6 +211,7 @@ function actualizarMapa(){
     // Construcción simplificada y robusta del heatmap:
     // - Agrupa puntos muy cercanos (redondeando) para evitar demasiados puntos idénticos
     // - Calcula un peso (intensidad) a partir del conteo por celda y lo normaliza entre 0..1
+    // - Aplica un umbral mínimo de intensidad para asegurar visibilidad
     const bucket = {};
     datosFiltrados.forEach(d => {
       const lat = getLat(d), lon = getLon(d);
@@ -194,42 +222,57 @@ function actualizarMapa(){
     });
     const counts = Object.values(bucket);
     const maxCount = counts.length ? Math.max(...counts) : 1;
+    
+    // Construir heatData con intensidad normalizada y umbral mínimo
+    const MIN_INTENSITY = 0.05; // umbral mínimo para evitar valores demasiado bajos
     const heatData = Object.keys(bucket).map(k => {
       const [latS, lonS] = k.split('|');
       const lat = Number(latS), lon = Number(lonS);
-      // intensidad normalizada (0..1)
-      const intensity = Math.min(1, bucket[k] / Math.max(1, maxCount));
+      // intensidad normalizada (0..1), con umbral mínimo
+      let intensity = bucket[k] / Math.max(1, maxCount);
+      intensity = Math.max(MIN_INTENSITY, Math.min(1, intensity));
       return [lat, lon, intensity];
-    });
+    }).filter(point => point[2] > 0); // asegurar que todas las intensidades sean > 0
+
+    console.debug(`[HeatMap] Generated ${heatData.length} heat points from ${datosFiltrados.length} filtered debris`);
 
     if (heatData.length) {
-      // Opciones más conservadoras y compatibles con leaflet.heat
+      // Opciones optimizadas para mayor visibilidad y compatibilidad con leaflet.heat
       capaCalor = L.heatLayer(heatData, {
-        radius: 25,
-        blur: 15,
-        minOpacity: 0.25,
-        max: 1,
+        radius: 30,           // aumentado para mejor visibilidad
+        blur: 20,             // suavizado intermedio
+        minOpacity: 0.4,      // opacidad mínima más alta para asegurar visibilidad
+        max: 1,               // valor máximo de intensidad
         gradient: { 0.1: 'blue', 0.4: 'lime', 0.7: 'yellow', 1.0: 'red' }
       }).addTo(mapa);
 
-      // Fix: obtener el contexto 2D con willReadFrequently para evitar advertencias
+      // Asegurar z-index del canvas del heatmap
+      if (capaCalor._canvas) {
+        capaCalor._canvas.style.zIndex = 600;
+      }
+
+      // Fallback: re-asignar contexto si el monkey-patch no fue suficiente
+      // (reducido delay de 200ms a 100ms)
       (function trySetWillReadFrequently(retry){
         try {
           if (capaCalor && capaCalor._canvas && capaCalor._canvas.getContext) {
             const ctx = capaCalor._canvas.getContext('2d', { willReadFrequently: true });
             if (ctx) {
               capaCalor._ctx = ctx;
+              console.debug('[HeatMap fallback] Context reassigned with willReadFrequently');
               return;
             }
           }
         } catch (e) {
           // ignore, we'll either retry or bail
         }
-        // si no estaba listo y aún no reintentamos, hacerlo tras 200ms
+        // si no estaba listo y aún no reintentamos, hacerlo tras 100ms
         if (!retry) {
-          setTimeout(()=>trySetWillReadFrequently(true), 200);
+          setTimeout(()=>trySetWillReadFrequently(true), 100);
         }
       })(false);
+    } else {
+      console.debug('[HeatMap] No heat data to display');
     }
     mostrarLeyendaCalor();
   }
