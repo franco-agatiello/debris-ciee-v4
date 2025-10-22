@@ -13,56 +13,11 @@ const iconoVerde = L.icon({iconUrl:'https://raw.githubusercontent.com/pointhi/le
 const iconoRojo = L.icon({iconUrl:'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',iconSize:[18,29],iconAnchor:[9,29],popupAnchor:[1,-30]});
 const iconoAmarillo = L.icon({iconUrl:'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-yellow.png',iconSize:[18,29],iconAnchor:[9,29],popupAnchor:[1,-30]});
 
+
 let debris = [];
 let mapa, capaPuntos, capaCalor, modo = "puntos";
 let leyendaPuntos, leyendaCalor;
 let mapaTrayectoria = null;
-
-// ------------------ HEAT LAYER MONKEY-PATCH ------------------
-// Ejecutar lo antes posible en main.js para interceptar onAdd de L.HeatLayer
-(function ensureHeatLayerWillReadFrequently() {
-  try {
-    if (!window.L || !L.HeatLayer || !L.HeatLayer.prototype) {
-      // si la libreria aún no está cargada, reintentar después (corto)
-      setTimeout(ensureHeatLayerWillReadFrequently, 50);
-      return;
-    }
-    const proto = L.HeatLayer.prototype;
-    if (!proto.__willReadFreqPatched) {
-      const origOnAdd = proto.onAdd;
-      proto.onAdd = function(map) {
-        // Lógica original (crea canvas internamente)
-        origOnAdd.call(this, map);
-        try {
-          if (this._canvas && this._canvas.getContext) {
-            // Intentamos obtener contexto con willReadFrequently: true
-            try {
-              const ctx = this._canvas.getContext('2d', { willReadFrequently: true });
-              if (ctx) {
-                this._ctx = ctx;
-                console.debug("heat: contexto reasignado con willReadFrequently (onAdd)");
-              } else {
-                // fallback al contexto sin opciones (ya existente)
-                this._ctx = this._canvas.getContext('2d') || this._ctx;
-              }
-            } catch (e) {
-              // navegador no soporta la opción, usamos contexto por defecto
-              this._ctx = this._canvas.getContext('2d') || this._ctx;
-            }
-          }
-        } catch (err) {
-          // silencioso: no queremos romper la inicialización
-          console.debug("heat: error al reasignar contexto onAdd", err);
-        }
-      };
-      proto.__willReadFreqPatched = true;
-    }
-  } catch (err) {
-    // si ocurre algo raro, no bloquear la app
-    console.debug("heat: no se pudo aplicar monkey-patch inmediato", err);
-  }
-})();
-// -------------------------------------------------------------
 
 mapa = L.map('map', { worldCopyJump: true }).setView([0,0], 2);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
