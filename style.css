@@ -1,11 +1,36 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
 
+/* ================== Design Tokens ================== */
+:root {
+  --color-bg: #fafbfc;
+  --color-panel: #ffffff;
+  --color-border: #e3e8ef;
+  --color-text: #1a2b55;
+  --color-text-muted: #5b6779;
+  --color-accent: #2d63b3;
+  --color-accent-alt: #ff8f2f;
+  --color-accent-soft: #eef4ff;
+  --color-danger: #e53935;
+  --color-success: #2e7d57;
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --shadow-sm: 0 2px 6px rgba(28,63,114,0.08);
+  --shadow-md: 0 4px 14px rgba(28,63,114,0.10);
+  --transition-fast: .15s ease;
+  --gradient-heat-0: #103f91;
+  --gradient-heat-25: #1f78b4;
+  --gradient-heat-50: #ffd54f;
+  --gradient-heat-75: #ff8f2f;
+  --gradient-heat-100: #d84315;
+}
+
 /* ----------- BASE DE LA APP ----------- */
 html, body {
   height: 100%;
   margin: 0; padding: 0; overflow-x: hidden !important;
   font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-  background: #f7f9fb !important; color: #23272f;
+  background: var(--color-bg) !important; color: var(--color-text);
   box-sizing: border-box;
 }
 
@@ -16,42 +41,71 @@ body > .container-fluid { width: 100vw !important; max-width: 100vw !important; 
   min-height: 100vh;
   height: 100vh;
   overflow-y: auto;
-  background: #fff;
+  background: var(--color-panel);
   width: 340px;
   max-width: 340px;
   min-width: 340px;
   box-sizing: border-box;
   padding: 12px 10px !important;
-  border-right: 1px solid #dde1e7;
-  box-shadow: 2px 0 10px rgba(50,60,90,0.04);
+  border-right: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  z-index: 200;
 }
-#sidebar h4 { font-size: 1.05rem; margin-top: 0.5rem; margin-bottom: 1rem; font-weight: 600; letter-spacing: 0.5px; color: #2c3e50; }
+#sidebar h4 { font-size: 1.05rem; margin-top: 0.5rem; margin-bottom: 1rem; font-weight: 600; letter-spacing: 0.5px; color: var(--color-text); }
 #filter-form label { font-size: 0.93rem; font-weight: 500; margin-top: 0.25rem; color: #34495e; }
 #filter-form .form-select, #filter-form .form-control { font-size: 0.93rem; padding: 0.25rem 0.5rem; border-radius: 0.5rem; margin-bottom: 0.7rem; }
 .sidebar-logo { max-width: 180px; display: block; margin: 0 auto 0.5rem auto; }
 
 #main-col { min-height: 100vh; padding: 0 !important; }
-#map { width: 100%; height: 100vh; min-height: 100vh; box-sizing: border-box; background: #f7f9fb; }
+#main-col {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  position: relative; /* permite posicionar el buscador NORAD absolutemente dentro */
+}
+@supports (height: 100dvh) {
+  #main-col { height: 100dvh; }
+}
+#active-filters { flex: 0 0 auto; }
+#map {
+  flex: 1 1 auto;
+  width: 100%;
+  height: auto;
+  min-height: 0; /* permite que flex calcule sin overflow */
+  box-sizing: border-box;
+  background: var(--color-bg);
+  overflow: hidden; /* evitar scrollbar interno */
+}
 
-.btn-primary, .btn-secondary { transition: background 0.2s, box-shadow 0.2s; font-weight: 600; border-radius: 0.6rem; font-size: 1rem; box-shadow: 0 2px 8px rgba(44,62,80,0.05); margin-bottom: 0.5rem; }
+.btn-primary, .btn-secondary { transition: background var(--transition-fast), box-shadow var(--transition-fast); font-weight: 600; border-radius: 0.6rem; font-size: 1rem; box-shadow: var(--shadow-sm); margin-bottom: 0.5rem; }
 .btn-primary.active, .btn-secondary.active { box-shadow: 0 4px 16px rgba(44,62,80,0.10); outline: 2px solid #0056b3; }
 .btn-primary:focus, .btn-secondary:focus { outline: none; box-shadow: 0 0 0 0.15rem #007bff66; }
 
-#footer-ciee { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); font-size: 0.78rem; color: #7a869a; z-index: 9999; background: rgba(255,255,255,0.93); padding: 4px 10px; border-radius: 6px; border: 1px solid #e1e5ec; box-shadow: 0 2px 8px rgba(44,62,80,0.05); text-align: center; margin: 0 auto; width: fit-content; max-width: 98vw; overflow-x: auto; }
+#footer-ciee { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); font-size: 0.75rem; color: var(--color-text-muted); z-index: 9999; background: rgba(255,255,255,0.93); padding: 4px 10px; border-radius: var(--radius-sm); border: 1px solid var(--color-border); box-shadow: var(--shadow-sm); text-align: center; margin: 0 auto; width: fit-content; max-width: 98vw; overflow-x: auto; }
 #footer-ciee a { color: #007bff; text-decoration: underline; }
 
 @media (max-width: 768px) {
   #sidebar { width: 100vw !important; max-width: 100vw !important; min-width: 0 !important; padding: 8px 6px !important; border-right: none; border-bottom: 1px solid #e0e0e0; box-shadow: none; height: auto; }
+  #main-col { height: auto; }
   #map { min-height: 60vh; height: 60vh; }
   #footer-ciee { position: static; display: block; width: 100%; text-align: center; margin: 16px 0 0 0; left: 0; bottom: 0; border-radius: 0; border-left: none; border-right: none; transform: none; }
+}
+
+/* Evitar que el body scroll horizontal se "salte" el sticky del sidebar */
+@media (min-width: 769px) {
+  .row.flex-nowrap { align-items: flex-start; }
 }
 
 /* ----------- DROPDOWN Y FILTROS ----------- */
 #dropdownPaisMenu { max-height: 260px; overflow-y: auto; }
 .dropdown-menu {
-  border-radius: 0.65rem;
-  box-shadow: 0 2px 8px rgba(44,62,80,0.09);
-  font-size: 1rem;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+  font-size: 0.95rem;
+  border: 1px solid var(--color-border);
 }
 .dropdown-item:active,
 .dropdown-item:focus {
@@ -61,8 +115,8 @@ body > .container-fluid { width: 100vw !important; max-width: 100vw !important; 
 
 /* ----------- MAPA PRINCIPAL ----------- */
 #map {
-  border-radius: 1rem;
-  box-shadow: 0 2px 8px rgba(44,62,80,0.09);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
   margin-bottom: 1rem;
 }
 
@@ -86,17 +140,17 @@ body > .container-fluid { width: 100vw !important; max-width: 100vw !important; 
 
 /* ----------- INFO Y LEYENDAS MAPA ----------- */
 .info.legend {
-  background: #fff;
-  opacity: 1;
+  background: var(--color-panel);
+  opacity: 0.95;
   padding: 8px 10px;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(44,62,80,0.08);
-  border: 1px solid #dde1e7;
-  font-size: 0.74rem;
-  color: #2c3e50;
-  min-width: 90px;
-  font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-  line-height: 1.2;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--color-border);
+  font-size: 0.72rem;
+  color: var(--color-text);
+  min-width: 120px;
+  font-family: 'Inter','Segoe UI',Arial,sans-serif;
+  line-height: 1.25;
 }
 .info.legend strong {
   font-size: 0.81rem;
@@ -161,17 +215,34 @@ body > .container-fluid { width: 100vw !important; max-width: 100vw !important; 
 
 /* ----------- CHARTS Y CANVAS ----------- */
 .chart-container {
-  background: #fff;
-  border-radius: 0.85rem;
-  box-shadow: 0 2px 8px rgba(44,62,80,0.08);
+  background: var(--color-panel);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
   padding: 1rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.2rem;
+  border: 1px solid var(--color-border);
 }
-canvas {
+/* Evitar afectar los canvas internos de Leaflet con reglas globales */
+.chart-container canvas,
+#canvasMapaPuntos,
+#orbita3DContainer canvas {
   max-width: 100%;
   height: auto;
   margin: 0 auto;
   display: block;
+}
+
+/* Asegurar que los canvas de Leaflet mantengan su tamaño absoluto */
+.leaflet-pane canvas {
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+}
+
+/* Resaltar ligeramente la capa de calor */
+#map .leaflet-pane.heatPane canvas,
+#map .leaflet-heatmap-layer {
+  opacity: 0.95;
 }
 
 /* ----------- SPINNER Y LOADING ----------- */
@@ -190,7 +261,86 @@ canvas {
   margin-bottom: 1rem;
   background: #f7f9fb;
 }
-#orbita3DContainer { width: 100%; height: 70vh; max-height: 500px; }
+/* Ajuste de tamaño: órbita 3D un poco más grande que trayectoria, pero menos invasiva */
+#mapTrayectoria { height: 400px; }
+#orbita3DContainer { width: 100%; height: 460px; max-height: 460px; }
+@media (max-width: 992px) {
+  #orbita3DContainer { height: 400px; max-height: 400px; }
+}
+@media (max-width: 600px) {
+  #mapTrayectoria { height: 300px; }
+  #orbita3DContainer { height: 320px; max-height: 320px; }
+}
+
+/* Limitar ancho del modal de órbita 3D para que no ocupe casi todo el viewport en pantallas grandes */
+#modalOrbita3D .modal-dialog {
+  max-width: 980px; /* más angosto que modal-xl (~1140px) */
+  width: 95%;
+}
+@media (min-width: 1400px) {
+  #modalOrbita3D .modal-dialog { max-width: 1000px; }
+}
+
+/* Limitar ancho del modal de informe */
+#informeModal .modal-dialog {
+  max-width: 1100px; /* antes era xl (~1140-1320). Reducido ligeramente */
+  width: 96%;
+}
+@media (min-width: 1400px) {
+  #informeModal .modal-dialog { max-width: 1050px; }
+}
+
+/* ================== Chips de filtros activos ================== */
+.active-filters {
+  background: #ffffffCC;
+  backdrop-filter: blur(4px);
+  border-bottom: 1px solid #e0e4eb;
+}
+.filter-chip {
+  background: #e0e7ff;
+  border: 1px solid #b3c1ff;
+  padding: 4px 10px 4px 10px;
+  border-radius: 18px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1a2b55;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  cursor: pointer;
+  line-height: 1.2;
+  transition: background .15s, color .15s, opacity .15s;
+  position: relative;
+}
+.filter-chip:hover { background: #d2dbff; }
+.filter-chip.inactive { opacity: .45; text-decoration: line-through; background: #f3f5fa; color: #5c6b85; }
+.filter-chip .chip-toggle { font-size: 14px; display: inline-block; width: 14px; height: 14px; line-height: 14px; text-align: center; border-radius: 50%; background: #4f6bdc; color: #fff; font-weight: 700; }
+.filter-chip.inactive .chip-toggle { background: #94a3b8; }
+.filter-chip .chip-remove { font-size: 14px; width: 16px; height:16px; line-height:16px; text-align:center; border-radius:50%; background:#ff5252; color:#fff; font-weight:700; }
+.filter-chip.inactive .chip-remove { background:#b91c1c; }
+.filter-chip .chip-remove:hover { background:#e11d48; }
+.filter-chip .chip-toggle:hover { background:#3b57b8; }
+.filter-chip[data-key="region"] { background:#ffe8d6; border-color:#ffcfac; color:#7c3e00; }
+.filter-chip[data-key="region"].inactive { background:#fff2e8; color:#9d6a33; }
+.filter-chip[data-key="fecha"] { background:#e6fff4; border-color:#c3f6e0; color:#005c36; }
+.filter-chip[data-key="fecha"].inactive { background:#f2fff9; color:#2e7d57; }
+.filter-chip[data-key="constelacion"] { background:#f0eaff; border-color:#d8cdfa; color:#3d2d77; }
+.filter-chip[data-key="constelacion"].inactive { background:#f6f2ff; color:#5a4899; }
+
+@media (max-width: 768px) {
+  .active-filters { padding-top: 4px !important; }
+  .filter-chip { font-size: 11px; padding: 3px 8px; }
+}
+
+/* Active filters cuando están en el sidebar: sin recuadro, solo chips */
+#sidebar #active-filters {
+  background: transparent;
+  backdrop-filter: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+}
 
 /* ----------- ALERTAS EN MODALS ----------- */
 .alert-warning {
@@ -258,8 +408,9 @@ canvas {
 
 /* ----------- HEADINGS Y TEXTOS ----------- */
 h5, h6 {
-  color: #23272f;
+  color: var(--color-text);
   font-weight: 600;
+  letter-spacing: .3px;
 }
 
 /* ----------- MODAL SCROLLABLE Y RESPONSIVE ----------- */
@@ -287,3 +438,50 @@ h5, h6 {
     max-height: 240px !important;
   }
 }
+
+/* ================== Acciones flotantes (buscador + ayuda) ================== */
+.top-actions { position: absolute; top: 10px; right: 16px; z-index: 600; }
+.norad-area { gap: 4px; }
+#norad-search-box.norad-top {
+  background: rgba(255,255,255,0.88);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 4px 6px;
+  box-shadow: var(--shadow-sm);
+}
+#norad-search-box.norad-top .form-control {
+  width: 150px;
+  font-size: 0.72rem;
+  padding: 2px 6px;
+  line-height: 1.2;
+}
+#norad-search-box.norad-top .btn {
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  line-height: 1.1;
+  font-weight: 600;
+}
+.norad-help-link {
+  width: 22px; height: 22px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #f1f3f7;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.norad-help-link:hover { background: #e7eaf0; color: var(--color-accent); border-color: #cbd5e1; }
+@media (max-width: 768px) { .top-actions { top: 8px; right: 8px; } #norad-search-box.norad-top .form-control { width: 120px; } }
+
+/* ================== Alertas (debajo del logo) ================== */
+#sidebar .alert {
+  margin: 6px 6px 0 6px;
+  padding: 4px 8px;
+  font-size: 0.72rem;
+  border-radius: var(--radius-sm);
+  line-height: 1.2;
+}
+#sidebar .alert-warning { background: #fff8e1; border-color: #ffe8a1; }
+#sidebar .alert-danger { background: #ffebee; border-color: #ffcdd2; }
+#sidebar .alert-info { background: #e3f2fd; border-color: #bbdefb; }
