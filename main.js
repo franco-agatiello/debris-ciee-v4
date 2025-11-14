@@ -17,6 +17,36 @@ let debris = [];
 let mapa, capaPuntos, capaCalor, modo = "puntos";
 let leyendaPuntos, leyendaCalor;
 let mapaTrayectoria = null;
+let _heatRetryCount = 0;
+let _leafletHeatLoadPromise = null;
+let _listenersInitialized = false;
+const disabledFilters = new Set(); // guarda keys de filtros desactivados via chips
+let markersByNorad = {}; // índice norad -> marker
+
+// --- Utilidades UI: alertas simples en el sidebar ---
+function showAlert(message, type = 'warning', timeoutMs = 6000) {
+  try {
+    const sidebar = document.getElementById('sidebar') || document.body;
+    const wrapper = document.createElement('div');
+    wrapper.className = `alert alert-${type}`;
+    wrapper.role = 'alert';
+    wrapper.innerHTML = `<i class="bi bi-exclamation-triangle me-1"></i>${message}`;
+    // Insertar debajo del logo si existe
+    const logo = sidebar.querySelector('.sidebar-logo');
+    if (logo) {
+      // colocar después del logo (logo.parentNode es el <a>)
+      const anchor = logo.parentNode; // <a> contenedor
+      if (anchor.nextSibling) {
+        sidebar.insertBefore(wrapper, anchor.nextSibling);
+      } else {
+        sidebar.appendChild(wrapper);
+      }
+    } else {
+      sidebar.insertBefore(wrapper, sidebar.firstChild);
+    }
+    if (timeoutMs) setTimeout(()=>{ wrapper.remove(); }, timeoutMs);
+  } catch (e) { console.warn('No se pudo mostrar alerta UI:', e); }
+}
 
 // ------------------ HEAT LAYER MONKEY-PATCH ------------------
 // Ejecutar lo antes posible en main.js para interceptar onAdd de L.HeatLayer
@@ -64,12 +94,186 @@ let mapaTrayectoria = null;
 })();
 // -------------------------------------------------------------
 
-mapa = L.map('map', { worldCopyJump: true }).setView([0,0], 2);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 8,
-  attribution: '&copy; OpenStreetMap',
-  crossOrigin: true
-}).addTo(mapa);
+// Cargador robusto del plugin leaflet.heat desde múltiples CDNs
+function loadScriptOnce(url) {
+  return new Promise((resolve, reject) => {
+    try {
+      const existing = Array.from(document.getElementsByTagName('script'))
+        .some(s => s.src && s.src.includes('leaflet-heat'));
+      if (existing && typeof L !== 'undefined' && typeof L.heatLayer === 'function') {
+        return resolve();
+      }
+      const s = document.createElement('script');
+      s.src = url;
+      s.async = true;
+      s.defer = true;
+      s.onload = () => resolve();
+      s.onerror = (e) => reject(e);
+      document.head.appendChild(s);
+    } catch (e) { reject(e); }
+  });
+}
+
+function loadLeafletHeat() {
+  if (typeof L !== 'undefined' && typeof L.heatLayer === 'function') {
+    return Promise.resolve();
+  }
+  if (_leafletHeatLoadPromise) return _leafletHeatLoadPromise;
+  const cdns = [
+    'https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js',
+    'https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js'
+  ];
+  _leafletHeatLoadPromise = (async () => {
+    let lastErr = null;
+    for (const url of cdns) {
+      try {
+        console.warn('Intentando cargar leaflet.heat desde:', url);
+        await loadScriptOnce(url);
+        if (typeof L !== 'undefined' && typeof L.heatLayer === 'function') {
+          console.info('leaflet.heat cargado correctamente');
+          return;
+        }
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    throw lastErr || new Error('No se pudo cargar leaflet.heat desde los CDNs configurados');
+  })();
+  return _leafletHeatLoadPromise.catch(err => {
+    // reset para permitir reintentos futuros si el usuario acciona de nuevo
+    _leafletHeatLoadPromise = null;
+    throw err;
+  });
+}
+
+// Polyfill/fallback sencillo de heatmap si el plugin real no está disponible
+function ensureHeatFallbackPolyfill() {
+  try {
+    if (typeof L === 'undefined') return;
+    if (typeof L.heatLayer === 'function') return; // ya existe el plugin real
+
+    const SimpleHeatLayer = L.Layer.extend({
+      initialize: function(latlngs, options) {
+        L.setOptions(this, options || {});
+        this._latlngs = latlngs || [];
+      },
+      onAdd: function(map) {
+        this._map = map;
+        const panes = map.getPanes();
+        this._canvas = L.DomUtil.create('canvas', 'leaflet-heatmap-layer');
+        this._canvas.style.pointerEvents = 'none';
+        this._ctx = this._canvas.getContext('2d', { willReadFrequently: true }) || this._canvas.getContext('2d');
+        panes.overlayPane.appendChild(this._canvas);
+        this._reset();
+        map.on('moveend zoomend resize', this._reset, this);
+        this._draw();
+      },
+      onRemove: function(map) {
+        if (this._canvas && this._canvas.parentNode) {
+          this._canvas.parentNode.removeChild(this._canvas);
+        }
+        map.off('moveend zoomend resize', this._reset, this);
+      },
+      setLatLngs: function(latlngs) {
+        this._latlngs = latlngs || [];
+        this._draw();
+        return this;
+      },
+      setOptions: function(options) {
+        L.setOptions(this, options);
+        this._draw();
+        return this;
+      },
+      _reset: function() {
+        if (!this._map || !this._canvas) return;
+        const size = this._map.getSize();
+        this._canvas.width = size.x;
+        this._canvas.height = size.y;
+        const topLeft = this._map.containerPointToLayerPoint([0,0]);
+        L.DomUtil.setPosition(this._canvas, topLeft);
+        this._draw();
+      },
+      _draw: function() {
+        if (!this._map || !this._ctx) return;
+        const ctx = this._ctx;
+        const canvas = this._canvas;
+        ctx.clearRect(0,0,canvas.width, canvas.height);
+        const r = this.options.radius || 25;
+        const blur = this.options.blur || 15;
+        const minOpacity = this.options.minOpacity || 0.35;
+        const max = this.options.max || 1;
+        const gradient = this.options.gradient || { 0.1: 'blue', 0.4: 'lime', 0.7: 'yellow', 1.0: 'red' };
+
+        // kernel (radial) cache
+        const size = (r + blur) * 2;
+        const stamp = document.createElement('canvas');
+        stamp.width = stamp.height = size;
+        const gctx = stamp.getContext('2d');
+        const grd = gctx.createRadialGradient(size/2, size/2, r*0.2, size/2, size/2, r+blur);
+        grd.addColorStop(0, 'rgba(0,0,0,1)');
+        grd.addColorStop(1, 'rgba(0,0,0,0)');
+        gctx.fillStyle = grd;
+        gctx.fillRect(0,0,size,size);
+
+        // paso 1: máscara en alpha
+        const points = this._latlngs || [];
+        points.forEach(p => {
+          const lat = p[0], lon = p[1], v = Math.max(0, Math.min(1, (p[2] || 0) / max));
+          const pos = this._map.latLngToContainerPoint([lat, lon]);
+          ctx.globalAlpha = v;
+          ctx.drawImage(stamp, pos.x - (r+blur), pos.y - (r+blur));
+        });
+
+        // paso 2: colorizar según alpha usando LUT del gradiente
+        const img = ctx.getImageData(0,0,canvas.width, canvas.height);
+        const pix = img.data;
+        const lutCanvas = document.createElement('canvas');
+        lutCanvas.width = 256; lutCanvas.height = 1;
+        const lutCtx = lutCanvas.getContext('2d');
+        const lutGrad = lutCtx.createLinearGradient(0,0,256,0);
+        Object.keys(gradient).sort((a,b)=>parseFloat(a)-parseFloat(b)).forEach(stop => {
+          lutGrad.addColorStop(parseFloat(stop), gradient[stop]);
+        });
+        lutCtx.fillStyle = lutGrad;
+        lutCtx.fillRect(0,0,256,1);
+        const lut = lutCtx.getImageData(0,0,256,1).data;
+        for (let i=0; i<pix.length; i+=4) {
+          const alpha = pix[i+3];
+          if (!alpha) continue;
+          const idx = (alpha << 2); // *4
+          pix[i]   = lut[idx];     // R
+          pix[i+1] = lut[idx+1];   // G
+          pix[i+2] = lut[idx+2];   // B
+          pix[i+3] = Math.max(alpha, minOpacity*255);
+        }
+        ctx.putImageData(img, 0, 0);
+        ctx.globalAlpha = 1;
+      }
+    });
+
+    L.heatLayer = function(latlngs, options) {
+      return new SimpleHeatLayer(latlngs, options);
+    };
+    console.info('leaflet.heat no disponible; usando fallback de heatmap integrado.');
+  } catch (e) {
+    console.warn('No se pudo instalar el fallback de heatmap:', e);
+  }
+}
+
+function initMapa(){
+  mapa = L.map('map', { worldCopyJump: true }).setView([0,0], 2);
+  L.tileLayer('https://wms.ign.gob.ar/geoserver/gwc/service/tms/1.0.0/capabaseargenmap@EPSG%3A3857@png/{z}/{x}/{-y}.png', {
+    minZoom: 1,
+    maxZoom: 20,
+    attribution: '© IGN Argentina'
+  }).addTo(mapa);
+}
+initMapa();
+// Pane dedicado al heatmap para asegurar que quede por encima de tiles y capas vectoriales ligeras
+const heatPane = mapa.createPane('heatPane');
+heatPane.style.zIndex = '450';
+heatPane.style.pointerEvents = 'none';
+
 capaPuntos = L.layerGroup().addTo(mapa);
 
 // datos iniciales: cargar JSON
@@ -80,6 +284,7 @@ capaPuntos = L.layerGroup().addTo(mapa);
   } catch(e) {
     debris = [];
     console.warn("No se pudo cargar data/debris.json:", e);
+    showAlert('No se pudieron cargar los datos (data/debris.json). Si abriste el archivo con doble clic, usa un servidor local o sube a GitHub Pages.', 'danger', 10000);
   }
   poblarDropdown("dropdownPaisMenu", "dropdownPaisBtn", valoresUnicos(debris.map(d=>d.pais)), "Todos");
   poblarDropdown("dropdownClaseMenu", "dropdownClaseBtn", valoresUnicos(debris.map(d=>d.clase_objeto)), "Todas");
@@ -165,22 +370,22 @@ function filtrarDatos(){
   const lonMax = f.lonMax!=="" ? Number(f.lonMax) : null;
 
   return debris.filter(d=>{
-    if (f.pais && d.pais!==f.pais) return false;
-    if (f.fechaDesde && d.fecha < f.fechaDesde) return false;
-    if (f.fechaHasta && d.fecha > f.fechaHasta) return false;
-    if (f.inclinacionMin && Number(d.inclinacion_orbita) < Number(f.inclinacionMin)) return false;
-    if (f.inclinacionMax && Number(d.inclinacion_orbita) > Number(f.inclinacionMax)) return false;
-    if (f.masaOrbitaMin && (!d.masa_en_orbita || Number(d.masa_en_orbita) < Number(f.masaOrbitaMin))) return false;
-    if (f.masaOrbitaMax && (!d.masa_en_orbita || Number(d.masa_en_orbita) > Number(f.masaOrbitaMax))) return false;
-    if (f.clase_objeto && d.clase_objeto !== f.clase_objeto) return false;
-    if (f.constelacion !== "todas"){
+    if (!disabledFilters.has('pais') && f.pais && d.pais!==f.pais) return false;
+    if (!disabledFilters.has('fecha') && f.fechaDesde && d.fecha < f.fechaDesde) return false;
+    if (!disabledFilters.has('fecha') && f.fechaHasta && d.fecha > f.fechaHasta) return false;
+    if (!disabledFilters.has('inclinacion') && f.inclinacionMin && Number(d.inclinacion_orbita) < Number(f.inclinacionMin)) return false;
+    if (!disabledFilters.has('inclinacion') && f.inclinacionMax && Number(d.inclinacion_orbita) > Number(f.inclinacionMax)) return false;
+    if (!disabledFilters.has('masa') && f.masaOrbitaMin && (!d.masa_en_orbita || Number(d.masa_en_orbita) < Number(f.masaOrbitaMin))) return false;
+    if (!disabledFilters.has('masa') && f.masaOrbitaMax && (!d.masa_en_orbita || Number(d.masa_en_orbita) > Number(f.masaOrbitaMax))) return false;
+    if (!disabledFilters.has('clase_objeto') && f.clase_objeto && d.clase_objeto !== f.clase_objeto) return false;
+    if (!disabledFilters.has('constelacion') && f.constelacion !== "todas"){
       const v = String(d.constelacion||"").toLowerCase();
       const enConst = v && v!=="noconstelacion" && v!=="no" ? true : false;
       if (f.constelacion==="si" && !enConst) return false;
       if (f.constelacion==="no" &&  enConst) return false;
     }
     const lat = getLat(d), lon = getLon(d);
-    if (!pointInBBox(lat, lon, latMin, latMax, lonMin, lonMax)) return false;
+    if (!disabledFilters.has('region') && !pointInBBox(lat, lon, latMin, latMax, lonMin, lonMax)) return false;
     return true;
   });
 }
@@ -193,8 +398,14 @@ function marcadorPorFecha(fecha) {
   return iconoAmarillo;
 }
 
+function getNoradId(d){
+  return d?.norad_id || d?.NORAD_ID || d?.norad || d?.noradId || d?.id_norad || null;
+}
 function popupContenidoDebris(d,index){
-  let contenido = `<strong>${d.nombre ?? ''}</strong><br>`;
+  const norad = getNoradId(d);
+  let nombre = d.nombre ?? '';
+  if (norad) nombre += ` (${norad})`;
+  let contenido = `<strong>${nombre}</strong><br>`;
   if(d.pais) contenido += `País: ${d.pais}<br>`;
   if(d.clase_objeto) contenido += `Clase: ${d.clase_objeto}<br>`;
   if(d.masa_en_orbita !== null && d.masa_en_orbita !== undefined) contenido += `Masa en órbita: ${d.masa_en_orbita} kg<br>`;
@@ -221,6 +432,7 @@ function actualizarMapa(){
 
   if(modo==="puntos"){
     capaPuntos=L.layerGroup();
+    markersByNorad = {};
     datosFiltrados.forEach((d,i)=>{
       const lat = getLat(d), lon = getLon(d);
       if (lat===null || lon===null) return;
@@ -230,6 +442,8 @@ function actualizarMapa(){
         const imgs=e.popup._contentNode.querySelectorAll('img');
         imgs.forEach(img=>img.addEventListener('load',()=>{e.popup.update();}));
       });
+      const nid = getNoradId(d);
+      if (nid) markersByNorad[String(nid).trim()] = marker;
       capaPuntos.addLayer(marker);
     });
     capaPuntos.addTo(mapa);
@@ -240,34 +454,82 @@ function actualizarMapa(){
     datosFiltrados.forEach(d => {
       const lat = getLat(d), lon = getLon(d);
       if (lat === null || lon === null) return;
-      const key = lat.toFixed(3) + '|' + lon.toFixed(3);
+      // Agrupar a 0.1° (~11 km) para lograr clusters más visibles en calor
+      const key = lat.toFixed(1) + '|' + lon.toFixed(1);
       bucket[key] = (bucket[key] || 0) + 1;
     });
     const counts = Object.values(bucket);
     const maxCount = counts.length ? Math.max(...counts) : 1;
-    const minIntensity = 0.05; // umbral mínimo para que no quede 0
+    const minIntensity = 0.03; // umbral mínimo (más bajo para menor intensidad general)
     const heatData = Object.keys(bucket).map(k => {
       const [latS, lonS] = k.split('|');
       const lat = Number(latS), lon = Number(lonS);
-      // intensidad normalizada (0..1) con umbral
+      // intensidad normalizada (0..1) con umbral y curva gamma (>1 para atenuar) + escala global
       const raw = bucket[k] / Math.max(1, maxCount);
-      const intensity = Math.min(1, Math.max(minIntensity, raw));
+      const gamma = 1.25;   // >1 atenúa las zonas brillantes
+      const scale = 0.7;    // factor global para reducir intensidad
+      const intensity = Math.min(1, Math.max(minIntensity, Math.pow(raw, gamma) * scale));
       return [lat, lon, intensity];
     });
 
     console.debug("heatData length:", heatData.length, "maxCount:", maxCount);
+    // Depuración: mostrar parte de los datos y comprobar disponibilidad del plugin
+    console.debug("heatData preview:", heatData.slice(0,5));
+    if (typeof L === 'undefined' || typeof L.heatLayer !== 'function') {
+      console.error('leaflet.heat no está disponible: L.heatLayer no definida. Asegúrate de haber cargado leaflet.heat.js antes de main.js');
+    }
 
+    // Si el plugin leaflet.heat no está listo, intentar cargarlo dinámicamente desde CDN
+    if (typeof L === 'undefined' || typeof L.heatLayer !== 'function') {
+      loadLeafletHeat()
+        .then(() => {
+          // Reintentar pintar el mapa una vez cargado
+          _heatRetryCount = 0;
+          actualizarMapa();
+        })
+        .catch((err) => {
+          console.error('No se pudo cargar leaflet.heat:', err);
+          showAlert('No se pudo cargar la capa de calor (leaflet.heat). Revisa tu conexión o bloqueadores de contenido.', 'danger', 9000);
+        });
+      return; // detener flujo actual
+    }
+
+    if (!heatData.length) {
+      showAlert('No hay puntos para el modo calor con los filtros actuales.', 'warning', 4000);
+      mostrarLeyendaCalor();
+      return;
+    }
+
+    // asegurar que existe alguna implementación de heatLayer
+    ensureHeatFallbackPolyfill();
     if (heatData.length) {
-      // Opciones por defecto más visibles/compatibles
+      _heatRetryCount = 0; // resetear contador si todo OK
+      // Leer controles usuario (con fallback)
+      const radius = Number(document.getElementById('heat-radius')?.value || 36);
+      const blur   = Number(document.getElementById('heat-blur')?.value || 26);
+      const scaleControl = Number(document.getElementById('heat-scale')?.value || 0.7);
+      // Guardar preferencias
+      try { localStorage.setItem('ui.heat.radius', radius); localStorage.setItem('ui.heat.blur', blur); localStorage.setItem('ui.heat.scale', scaleControl); } catch(e){}
+      // Opciones heat
       const heatOptions = {
-        radius: 30,
-        blur: 20,
+        pane: 'heatPane',
+        radius: radius,
+        blur: blur,
         minOpacity: 0.35,
         max: 1,
+        maxZoom: 8,
         gradient: { 0.1: 'blue', 0.4: 'lime', 0.7: 'yellow', 1.0: 'red' }
       };
 
-      capaCalor = L.heatLayer(heatData, heatOptions).addTo(mapa);
+  // Ajustar intensidades según escala usuario
+  const scaledData = heatData.map(p => [p[0], p[1], Math.min(1, p[2] * scaleControl)]);
+  capaCalor = L.heatLayer(scaledData, heatOptions).addTo(mapa);
+      try { if (capaCalor && capaCalor.bringToFront) capaCalor.bringToFront(); } catch(e){}
+
+      // Depuración rápida: informar si el canvas se creó
+      try {
+        console.debug('capaCalor canvas:', !!(capaCalor && capaCalor._canvas));
+      } catch (e) { console.debug('error comprobando canvas de heat layer', e); }
 
       // Asegurar que el canvas use willReadFrequently si es posible (fallback corto)
       (function trySetWillReadFrequently(retry){
@@ -295,6 +557,7 @@ function actualizarMapa(){
 
     mostrarLeyendaCalor();
   }
+  construirChipsFiltros();
 }
 
 function mostrarLeyendaPuntos(){
@@ -488,6 +751,7 @@ window.mostrarOrbita3D = function(index) {
 
 // --- Listeners ---
 function listeners(){
+  if (_listenersInitialized) return; // evitar múltiples registros
   [
     'fecha-desde','fecha-hasta','inclinacion-min','inclinacion-max',
     'masa-orbita-min','masa-orbita-max','lat-min','lat-max','lon-min','lon-max'
@@ -511,6 +775,7 @@ function listeners(){
   if (btnInforme) btnInforme.addEventListener('click', abrirInforme);
   const dlPDF = document.getElementById('dlPDF');
   if (dlPDF) dlPDF.addEventListener('click', exportInformePDF);
+  _listenersInitialized = true;
 }
 
 // --- Selección rectangular ---
@@ -805,4 +1070,213 @@ document.addEventListener("DOMContentLoaded", ()=>{
       }).addTo(mapa);
     }
   } catch(e){}
+});
+
+// ================== Chips de filtros activos ==================
+function construirChipsFiltros(){
+  const cont = document.getElementById('active-filters');
+  if (!cont) return;
+  const f = obtenerFiltros();
+  const chips = [];
+  const add = (key,label,value,displayValue)=>{
+    if (!value) return;
+    chips.push({key,label,displayValue:displayValue||value,active: !disabledFilters.has(key)});
+  };
+  add('pais','País', f.pais);
+  add('clase_objeto','Clase', f.clase_objeto);
+  if (f.fechaDesde || f.fechaHasta) {
+    const disp = (f.fechaDesde||'∞') + '–' + (f.fechaHasta||'∞');
+    chips.push({key:'fecha',label:'Fecha',displayValue:disp,active:!disabledFilters.has('fecha')});
+  }
+  if (f.inclinacionMin || f.inclinacionMax) {
+    const disp = (f.inclinacionMin||'0') + '–' + (f.inclinacionMax||'180') + '°';
+    chips.push({key:'inclinacion',label:'Inclinación',displayValue:disp,active:!disabledFilters.has('inclinacion')});
+  }
+  if (f.masaOrbitaMin || f.masaOrbitaMax) {
+    const disp = (f.masaOrbitaMin||'0') + '–' + (f.masaOrbitaMax||'∞') + ' kg';
+    chips.push({key:'masa',label:'Masa órbita',displayValue:disp,active:!disabledFilters.has('masa')});
+  }
+  if (f.constelacion !== 'todas') {
+    const disp = f.constelacion === 'si' ? 'Solo constelaciones' : 'Sin constelaciones';
+    chips.push({key:'constelacion',label:'Constelación',displayValue:disp,active:!disabledFilters.has('constelacion')});
+  }
+  if (f.latMin || f.latMax || f.lonMin || f.lonMax) {
+    const disp = `Lat ${f.latMin||'-'}–${f.latMax||'-'}, Lon ${f.lonMin||'-'}–${f.lonMax||'-'}`;
+    chips.push({key:'region',label:'Región',displayValue:disp,active:!disabledFilters.has('region')});
+  }
+  if (!chips.length){
+    cont.innerHTML = '';
+    // ocultar el contenedor si no hay chips para que no ocupe espacio
+    try { cont.style.display = 'none'; } catch(e){}
+    return;
+  }
+  // asegurar que se muestre si hay chips
+  try { cont.style.display = ''; } catch(e){}
+  cont.innerHTML = chips.map(c=>`
+    <div class="filter-chip ${c.active?'':'inactive'}" data-key="${c.key}" title="Click para activar/desactivar. Doble click para limpiar">
+      <span class="chip-toggle">${c.active? '✓':'✕'}</span>
+      <span>${c.label}: ${c.displayValue}</span>
+      <span class="chip-remove" data-remove="${c.key}" aria-label="Quitar filtro">×</span>
+    </div>`).join('');
+}
+
+document.addEventListener('click', (e)=>{
+  const chip = e.target.closest('.filter-chip');
+  if (chip && chip.dataset.key){
+    const key = chip.dataset.key;
+    if (e.target.matches('.chip-remove')) {
+      // limpiar valores asociados
+      limpiarFiltro(key);
+      disabledFilters.delete(key);
+      actualizarMapa();
+      return;
+    }
+    // toggle active/inactive
+    if (disabledFilters.has(key)) disabledFilters.delete(key); else disabledFilters.add(key);
+    actualizarMapa();
+  }
+});
+
+function limpiarFiltro(key){
+  switch(key){
+    case 'pais': const btnP=document.getElementById('dropdownPaisBtn'); if(btnP){ btnP.dataset.value=''; btnP.textContent='Todos'; } break;
+    case 'clase_objeto': const btnC=document.getElementById('dropdownClaseBtn'); if(btnC){ btnC.dataset.value=''; btnC.textContent='Todas'; } break;
+    case 'fecha': ['fecha-desde','fecha-hasta'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; }); break;
+    case 'inclinacion': ['inclinacion-min','inclinacion-max'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; }); break;
+    case 'masa': ['masa-orbita-min','masa-orbita-max'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; }); break;
+    case 'constelacion': const all=document.getElementById('const-all'); if(all) all.checked=true; break;
+    case 'region': ['lat-min','lat-max','lon-min','lon-max'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; }); break;
+  }
+}
+// ================== Language Toggle (ES/EN) ==================
+const LANG_KEY = 'ui.lang';
+const i18n = {
+  es: {
+    filtros: 'Filtros', idioma: 'Idioma', pais: 'País de origen', todos: 'Todos', clase: 'Clase de objeto', selClase: 'Seleccionar clase',
+    fecha: 'Fecha de reentrada', inclinacion: 'Inclinación órbita (°)', masa: 'Masa en órbita (kg)', constelaciones: 'Constelaciones',
+    solo: 'Solo', sin: 'Sin', region: 'Región (lat/lon)', zona: 'Zona geográfica', seleccionarZona: 'Seleccionar Zona', limpiar: 'Limpiar',
+    informe: 'Generar informe', count: 'Registros mostrados:', puntos: 'Puntos', calor: 'Calor', basemap: 'Mapa base', ajustesCalor: 'Ajustes calor',
+    radio: 'Radio', blur: 'Blur', intensidad: 'Intensidad'
+  },
+  en: {
+    filtros: 'Filters', idioma: 'Language', pais: 'Country of origin', todos: 'All', clase: 'Object class', selClase: 'Select class',
+    fecha: 'Reentry date', inclinacion: 'Orbit inclination (°)', masa: 'Mass in orbit (kg)', constelaciones: 'Constellations',
+    solo: 'Only', sin: 'Without', region: 'Region (lat/lon)', zona: 'Geographic area', seleccionarZona: 'Select Area', limpiar: 'Clear',
+    informe: 'Generate report', count: 'Shown records:', puntos: 'Points', calor: 'Heat', basemap: 'Base map', ajustesCalor: 'Heat settings',
+    radio: 'Radius', blur: 'Blur', intensidad: 'Intensity'
+  }
+};
+function applyLang(lang){
+  const t = i18n[lang] || i18n.es;
+  const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+  setText('lbl-language', t.idioma);
+  setText('title-filtros', t.filtros);
+  setText('lbl-pais', t.pais);
+  const btnPais = document.getElementById('dropdownPaisBtn'); if (btnPais) { btnPais.textContent = t.todos; }
+  setText('lbl-clase', t.clase);
+  const btnClase = document.getElementById('dropdownClaseBtn'); if (btnClase) { btnClase.textContent = t.selClase; }
+  setText('lbl-fecha', t.fecha);
+  setText('lbl-inclinacion', t.inclinacion);
+  setText('lbl-masa', t.masa);
+  setText('lbl-const', t.constelaciones);
+  setText('lbl-const-solo', t.solo);
+  setText('lbl-const-sin', t.sin);
+  setText('lbl-region', t.region);
+  setText('lbl-zona', t.zona);
+  const btnSel = document.getElementById('btn-select-rect'); if (btnSel) btnSel.innerHTML = '<i class="bi bi-bounding-box"></i> ' + t.seleccionarZona;
+  const btnClr = document.getElementById('btn-clear-rect'); if (btnClr) btnClr.textContent = t.limpiar;
+  const btnInf = document.getElementById('btn-informe'); if (btnInf) btnInf.textContent = t.informe;
+  setText('lbl-count', t.count);
+  const mp = document.getElementById('modo-puntos'); if (mp) mp.innerHTML = '<i class="bi bi-geo-alt-fill me-1"></i>' + t.puntos;
+  const mc = document.getElementById('modo-calor'); if (mc) mc.innerHTML = '<i class="bi bi-fire me-1"></i>' + t.calor;
+  setText('lbl-basemap', t.basemap);
+  setText('lbl-heat-settings', t.ajustesCalor);
+  const lblR = document.getElementById('lbl-heat-radius'); if (lblR) lblR.childNodes[0].nodeValue = t.radio + ' ';
+  const lblB = document.getElementById('lbl-heat-blur'); if (lblB) lblB.childNodes[0].nodeValue = t.blur + ' ';
+  const lblS = document.getElementById('lbl-heat-scale'); if (lblS) lblS.childNodes[0].nodeValue = t.intensidad + ' ';
+  const langBtn = document.getElementById('toggle-lang'); if (langBtn) langBtn.textContent = (lang==='es'?'ES':'EN');
+  const noradInput = document.getElementById('norad-search-input');
+  const noradBtn = document.getElementById('norad-search-btn');
+  if (noradInput) noradInput.placeholder = (lang==='es'?'Buscar NORAD ID':'Search NORAD ID');
+  if (noradBtn) noradBtn.textContent = (lang==='es'?'Buscar':'Search');
+}
+function initLang(){
+  try {
+    const stored = localStorage.getItem(LANG_KEY) || 'es';
+    applyLang(stored);
+  } catch(e) { applyLang('es'); }
+}
+document.addEventListener('click', (e)=>{
+  if (e.target.closest && e.target.closest('#toggle-lang')){
+    const current = (localStorage.getItem(LANG_KEY) || 'es');
+    const next = current === 'es' ? 'en' : 'es';
+    try { localStorage.setItem(LANG_KEY, next); } catch(e){}
+    applyLang(next);
+  }
+});
+document.addEventListener('DOMContentLoaded', initLang);
+
+// ================== Heatmap slider listeners & restore ==================
+function restoreHeatPrefs(){
+  try {
+    const r = localStorage.getItem('ui.heat.radius');
+    const b = localStorage.getItem('ui.heat.blur');
+    const s = localStorage.getItem('ui.heat.scale');
+    if (r) document.getElementById('heat-radius').value = r;
+    if (b) document.getElementById('heat-blur').value = b;
+    if (s) document.getElementById('heat-scale').value = s;
+    updateHeatLabels();
+  } catch(e){}
+}
+function updateHeatLabels(){
+  const rv = document.getElementById('heat-radius')?.value;
+  const bv = document.getElementById('heat-blur')?.value;
+  const sv = document.getElementById('heat-scale')?.value;
+  if (rv) document.getElementById('heat-radius-val').textContent = rv;
+  if (bv) document.getElementById('heat-blur-val').textContent = bv;
+  if (sv) document.getElementById('heat-scale-val').textContent = sv;
+}
+document.addEventListener('input', (e)=>{
+  if (['heat-radius','heat-blur','heat-scale'].includes(e.target.id)){
+    updateHeatLabels();
+    if (modo === 'calor') actualizarMapa();
+  }
+});
+document.addEventListener('DOMContentLoaded', restoreHeatPrefs);
+
+// Show heat controls only in heat mode
+function updateHeatControlsVisibility(){
+  const box = document.getElementById('heatmap-controls');
+  if (!box) return;
+  box.style.display = (modo === 'calor') ? '' : 'none';
+}
+// hook into mode buttons
+document.addEventListener('click', (e)=>{
+  if (e.target && (e.target.id === 'modo-puntos' || e.target.closest && e.target.closest('#modo-puntos'))) {
+    setTimeout(updateHeatControlsVisibility, 0);
+  }
+  if (e.target && (e.target.id === 'modo-calor' || e.target.closest && e.target.closest('#modo-calor'))) {
+    setTimeout(updateHeatControlsVisibility, 0);
+  }
+});
+document.addEventListener('DOMContentLoaded', updateHeatControlsVisibility);
+
+// ================== NORAD Search ==================
+function buscarNorad(){
+  const input = document.getElementById('norad-search-input');
+  if (!input) return;
+  const val = input.value.trim();
+  if (!val) return;
+  if (modo === 'calor') { modo = 'puntos'; actualizarMapa(); }
+  setTimeout(()=>{
+    const marker = markersByNorad[val];
+    if (!marker) { showAlert('NORAD ID no encontrado en los registros visibles.', 'warning', 6000); return; }
+    try { mapa.panTo(marker.getLatLng()); marker.openPopup(); } catch(e){}
+  }, 200);
+}
+document.addEventListener('click',(e)=>{
+  if (e.target && e.target.id === 'norad-search-btn') buscarNorad();
+});
+document.addEventListener('keydown',(e)=>{
+  if (e.key === 'Enter' && document.activeElement === document.getElementById('norad-search-input')) buscarNorad();
 });
