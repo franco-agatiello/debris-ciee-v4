@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Dashboard | Debris Espaciales</title>
-  <link rel="icon" href="favicon.ico" type="image/x-icon">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"/>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"/>
@@ -39,12 +39,19 @@
         <a href="https://www.ciee.unlp.edu.ar/" target="_blank" rel="noopener">
           <img src="img/Captura de pantalla 2025-06-06 211123.png" alt="Logo CIEE" class="sidebar-logo mb-3">
         </a>
-        <h4>Filtros</h4>
+        <!-- Language Toggle -->
+        <div class="mb-3 d-flex align-items-center justify-content-between">
+          <span id="lbl-language" class="small fw-semibold" style="color:var(--color-text-muted);">Idioma</span>
+          <button id="toggle-lang" class="btn btn-sm btn-outline-secondary" aria-label="Toggle language">ES</button>
+        </div>
+        <!-- Chips de filtros activos (en sidebar, debajo de Idioma) -->
+        <div id="active-filters" class="active-filters d-flex flex-wrap gap-2 p-2 mb-2"></div>
+        <h4 id="title-filtros">Filtros</h4>
         <div class="accordion mb-2" id="filtrosAccordion">
           <!-- País de origen -->
           <div class="accordion-item">
             <h2 class="accordion-header" id="headingPais">
-              <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePais" aria-expanded="true" aria-controls="collapsePais">
+              <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePais" aria-expanded="true" aria-controls="collapsePais" id="lbl-pais">
                 País de origen
               </button>
             </h2>
@@ -62,7 +69,7 @@
           <!-- Clase de objeto -->
           <div class="accordion-item">
             <h2 class="accordion-header" id="headingClase">
-              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseClase" aria-expanded="false" aria-controls="collapseClase">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseClase" aria-expanded="false" aria-controls="collapseClase" id="lbl-clase">
                 Clase de objeto
               </button>
             </h2>
@@ -80,7 +87,7 @@
           <!-- Fecha de reentrada -->
           <div class="accordion-item">
             <h2 class="accordion-header" id="headingFecha">
-              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFecha" aria-expanded="false" aria-controls="collapseFecha">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFecha" aria-expanded="false" aria-controls="collapseFecha" id="lbl-fecha">
                 Fecha de reentrada
               </button>
             </h2>
@@ -96,7 +103,7 @@
           <!-- Inclinación órbita -->
           <div class="accordion-item">
             <h2 class="accordion-header" id="headingIncl">
-              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseIncl" aria-expanded="false" aria-controls="collapseIncl">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseIncl" aria-expanded="false" aria-controls="collapseIncl" id="lbl-inclinacion">
                 Inclinación órbita (°)
               </button>
             </h2>
@@ -112,7 +119,7 @@
           <!-- Masa en órbita -->
           <div class="accordion-item">
             <h2 class="accordion-header" id="headingMasa">
-              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseMasa" aria-expanded="false" aria-controls="collapseMasa">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseMasa" aria-expanded="false" aria-controls="collapseMasa" id="lbl-masa">
                 Masa en órbita (kg)
               </button>
             </h2>
@@ -128,7 +135,7 @@
           <!-- Constelaciones -->
           <div class="accordion-item">
             <h2 class="accordion-header" id="headingConst">
-              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseConst" aria-expanded="false" aria-controls="collapseConst">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseConst" aria-expanded="false" aria-controls="collapseConst" id="lbl-const">
                 Constelaciones
               </button>
             </h2>
@@ -138,9 +145,9 @@
                   <input type="radio" class="btn-check" name="rb-const" id="const-all" autocomplete="off" checked>
                   <label class="btn btn-outline-secondary" for="const-all">Todo</label>
                   <input type="radio" class="btn-check" name="rb-const" id="const-yes" autocomplete="off">
-                  <label class="btn btn-outline-secondary" for="const-yes">Solo</label>
+                  <label class="btn btn-outline-secondary" for="const-yes" id="lbl-const-solo">Solo</label>
                   <input type="radio" class="btn-check" name="rb-const" id="const-no" autocomplete="off">
-                  <label class="btn btn-outline-secondary" for="const-no">Sin</label>
+                  <label class="btn btn-outline-secondary" for="const-no" id="lbl-const-sin">Sin</label>
                 </div>
               </div>
             </div>
@@ -148,7 +155,7 @@
           <!-- Región (Lat/Lon) + selección rectangular -->
           <div class="accordion-item">
             <h2 class="accordion-header" id="headingRegion">
-              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseRegion" aria-expanded="false" aria-controls="collapseRegion">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseRegion" aria-expanded="false" aria-controls="collapseRegion" id="lbl-region">
                 Región (lat/lon)
               </button>
             </h2>
@@ -156,7 +163,7 @@
               <div class="accordion-body">
                 <div class="d-flex justify-content-between align-items-center mb-1">
                   <div>
-                    <span class="fw-semibold">Zona geográfica</span>
+                    <span class="fw-semibold" id="lbl-zona">Zona geográfica</span>
                   </div>
                   <div class="btn-group">
                     <button class="btn btn-sm btn-outline-primary" id="btn-select-rect">
@@ -175,8 +182,10 @@
             </div>
           </div>
         </div>
-        <button id="btn-informe" class="btn btn-primary w-100 mb-2">Generar informe</button>
-        <div class="mt-2 small text-muted">Registros mostrados: <span id="countSpan">0</span></div>
+        <div class="d-grid gap-2 mb-2">
+          <button id="btn-informe" class="btn btn-primary w-100">Generar informe</button>
+        </div>
+        <div class="mt-2 small text-muted"><span id="lbl-count">Registros mostrados:</span> <span id="countSpan">0</span></div>
         <div class="mt-4 d-grid gap-2">
           <button type="button" class="btn btn-primary" id="modo-puntos">
             <i class="bi bi-geo-alt-fill me-1"></i>Puntos
@@ -184,9 +193,33 @@
           <button type="button" class="btn btn-secondary" id="modo-calor">
             <i class="bi bi-fire me-1"></i>Calor
           </button>
+          <!-- Heatmap Controls -->
+          <div id="heatmap-controls" class="mt-3 p-2 rounded" style="background:var(--color-panel);border:1px solid var(--color-border); display:none;">
+            <div class="small fw-semibold mb-2" style="color:var(--color-text-muted);" id="lbl-heat-settings">Ajustes calor</div>
+            <label class="form-label small mb-0" for="heat-radius" id="lbl-heat-radius">Radio <span id="heat-radius-val" class="text-muted">36</span></label>
+            <input type="range" min="10" max="80" value="36" id="heat-radius" class="form-range" aria-label="Radio puntos calor">
+            <label class="form-label small mb-0" for="heat-blur" id="lbl-heat-blur">Blur <span id="heat-blur-val" class="text-muted">26</span></label>
+            <input type="range" min="5" max="60" value="26" id="heat-blur" class="form-range" aria-label="Difuminado calor">
+            <label class="form-label small mb-0" for="heat-scale" id="lbl-heat-scale">Intensidad <span id="heat-scale-val" class="text-muted">0.7</span></label>
+            <input type="range" step="0.05" min="0.2" max="1.2" value="0.7" id="heat-scale" class="form-range" aria-label="Escala intensidad calor">
+          </div>
         </div>
       </aside>
       <main class="col p-0" id="main-col">
+        <!-- Acciones superiores: buscador NORAD + ayuda (flotando sobre el mapa) -->
+        <div id="top-actions" class="top-actions">
+          <div class="norad-area d-flex flex-column align-items-end">
+            <div id="norad-search-box" class="norad-top" role="search" aria-label="Buscar NORAD ID">
+              <div class="input-group input-group-sm">
+                <input type="text" class="form-control" id="norad-search-input" placeholder="NORAD ID" aria-label="Campo búsqueda NORAD ID">
+                <button class="btn btn-outline-primary" id="norad-search-btn" type="button">Buscar</button>
+              </div>
+            </div>
+            <a href="help.html" target="_blank" rel="noopener" class="norad-help-link" title="Ayuda / Documentación" aria-label="Ayuda / Documentación">
+              <i class="bi bi-question-circle"></i>
+            </a>
+          </div>
+        </div>
         <div id="map"></div>
       </main>
     </div>
@@ -199,7 +232,7 @@
   </div>
  <!-- Modal de Informe y los modals de Trayectoria y Órbita 3D incluidos -->
 <div class="modal fade" id="informeModal" tabindex="-1" aria-labelledby="informeLabel" aria-hidden="true">
-  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="informeLabel">Informe de reentradas (según filtros activos)</h5>
@@ -267,7 +300,7 @@
 
 <!-- Modal Órbita 3D -->
 <div class="modal fade" id="modalOrbita3D" tabindex="-1" aria-labelledby="orbita3DLabel" aria-hidden="true">
-  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="orbita3DLabel">Órbita 3D (últimos TLE)</h5>
