@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Ayuda | Dashboard de Debris</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"/>
+  <link rel="stylesheet" href="style.css"/>
+  <style>
+    main.help { max-width: 1000px; margin: 0 auto; padding: 1.8rem 1.2rem 3rem; }
+    .help h1 { font-size: 1.9rem; font-weight: 700; margin-bottom: 1.2rem; }
+    .help h2 { font-size: 1.35rem; margin-top: 2.2rem; margin-bottom: 0.9rem; font-weight:600; }
+    .help h3 { font-size: 1.12rem; margin-top:1.6rem; margin-bottom:0.6rem; font-weight:600; }
+    .help h4 { font-size: 1rem; margin-top:1.1rem; margin-bottom:0.45rem; font-weight:600; color:#444; }
+    .badge-mode { font-size:.65rem; letter-spacing:.5px; }
+    .feature-card { background: var(--color-panel); border:1px solid var(--color-border); border-radius: var(--radius-md); padding:1rem 1rem; box-shadow: var(--shadow-sm); margin-bottom:1rem; }
+    .callout { border-left:4px solid var(--color-accent); background:#eef4ff; padding:.85rem 1rem; border-radius: var(--radius-sm); font-size:.9rem; }
+    .disclaimer { border-left:4px solid #d84315; background:#fff4ed; padding:.9rem 1rem; border-radius: var(--radius-sm); font-size:.85rem; }
+    .legend-block { display:flex; gap:6px; align-items:center; font-size:.75rem; }
+    .legend-color { width:14px; height:14px; border-radius:4px; }
+    .toc a { text-decoration:none; }
+    .toc > li { margin-bottom:.35rem; }
+    .toc ul { margin-top:.35rem; margin-bottom:.35rem; }
+    .toc ul li { margin-bottom:.25rem; font-size:.95rem; }
+    .owner-index { display:flex; flex-wrap:wrap; gap:.4rem .6rem; font-size:.85rem; margin-bottom:.6rem; }
+    .owner-index a { padding:.15rem .35rem; border-radius:var(--radius-sm); border:1px solid var(--color-border); background:var(--color-panel); text-decoration:none; }
+    .owner-table { width:100%; border-collapse:collapse; }
+    .owner-table th, .owner-table td { border:1px solid var(--color-border); padding:.4rem .5rem; font-size:.9rem; }
+    .owner-group { margin-top:1rem; }
+    .return { position:fixed; top:10px; right:10px; }
+    /* Separadores sutiles entre tópicos/sections */
+    .help section { padding-top:.6rem; }
+    .help section + section { border-top:1px solid var(--color-border); margin-top:.8rem; }
+  </style>
+</head>
+<body>
+  <a href="index.html" class="btn btn-sm btn-outline-secondary return">← Volver</a>
+  <main class="help">
+    <h1>Ayuda y documentación del Dashboard de Debris</h1>
+    <p class="text-muted">Guía para interpretar lo que ves en el mapa y usarlo de forma responsable.</p>
+    <div class="feature-card">
+      <h2>Resumen clave</h2>
+      <p><u><strong>Las fuentes principales son Space-Track.org y ESA DISCOS.</strong></u> Reunimos y depuramos registros públicos de objetos espaciales y sus reingresos.</p>
+      <p><u><strong>Lo mostrado NO es la totalidad de los reingresos.</strong></u> Visualizamos los casos con información suficientemente precisa; existen muchos más eventos de los que no se cuenta con detalle.</p>
+    </div>
+    <div class="feature-card">
+      <h2>Quiénes somos</h2>
+      <p>El Centro Interdisciplinario de Estudios Espaciales (CIEE) de la Universidad Nacional de La Plata promueve investigación y formación en sostenibilidad espacial. Dentro del CIEE, el GISE desarrolla el <strong>Proyecto MIRA</strong>, enfocado en monitorear, clasificar y comunicar reingresos atmosféricos para apoyar la toma de decisiones públicas y la sensibilización ciudadana.</p>
+    </div>
+    <div class="feature-card">
+      <h2>Tabla de contenido</h2>
+      <ul class="toc">
+        <li><a href="#datos">Origen y naturaleza de los datos</a></li>
+        <li>
+          <a href="#uso">Uso del mapa</a>
+          <ul>
+            <li><a href="#filtros">Filtros disponibles</a></li>
+            <li><a href="#chips">Chips de filtros activos</a></li>
+            <li><a href="#modos">Modos (Puntos / Calor)</a>
+              <ul>
+                <li><a href="#modo-puntos">Puntos</a></li>
+                <li><a href="#modo-calor">Calor</a></li>
+              </ul>
+            </li>
+            <li><a href="#busqueda-norad">Búsqueda por NORAD ID</a></li>
+            <li><a href="#leyenda">Leyenda de colores</a></li>
+          </ul>
+        </li>
+        <li><a href="#informe">Generación de informe</a></li>
+        <li><a href="#orbita">Trayectoria y órbita 3D</a></li>
+        <li><a href="#rendimiento">Rendimiento y fallback</a></li>
+        <li><a href="#limitaciones">Limitaciones y advertencias</a></li>
+        <li><a href="#owner-codes">Códigos Space‑Track de país/organismo</a></li>
+      </ul>
+    </div>
+
+    <section id="datos">
+      <h2>Origen y naturaleza de los datos</h2>
+      <p>El mapa se construye con registros compilados desde <a href="https://www.space-track.org/" target="_blank" rel="noopener">Space‑Track.org</a> y la base <a href="https://discosweb.esoc.esa.int/" target="_blank" rel="noopener">ESA DISCOS</a>, más fuentes públicas complementarias. Cada objeto incluye atributos como país de origen, clase, fecha de reentrada, inclinación, masa y su <strong>NORAD ID</strong> (identificador numérico).</p>
+      <div class="callout">Es una selección curada y puede estar incompleta. No es un servicio en tiempo real ni pretende cubrir cada reingreso histórico.</div>
+    </section>
+
+    <section id="uso"></section>
+    <section id="filtros">
+      <h2>Filtros disponibles</h2>
+      <p>En el panel lateral se aplican filtros que restringen los registros visibles. Cada filtro reduce el conjunto y actualiza el conteo mostrado.</p>
+      <ul>
+        <li><strong>País de origen:</strong> selección única o "Todos".</li>
+        <li><strong>Clase de objeto:</strong> categoría técnica (satélite, etapa, fragmento, etc.).</li>
+        <li><strong>Fecha de reentrada:</strong> rango entre dos fechas (inclusive).</li>
+        <li><strong>Inclinación órbita (°):</strong> rango numérico (0°–180°).</li>
+        <li><strong>Masa en órbita (kg):</strong> rango de masa. Valores vacíos no filtran.</li>
+        <li><strong>Constelaciones:</strong> "Todo", "Solo" (solo los pertenecientes) o "Sin".</li>
+        <li><strong>Región (lat/lon):</strong> selección manual de límites o rectángulo en el mapa.</li>
+      </ul>
+      <p>Los filtros se pueden combinar. La actualización es inmediata tras cambiar cualquier control.</p>
+    </section>
+
+    <section id="chips">
+      <h2>Chips de filtros activos</h2>
+      <p>Arriba del mapa se generan <em>chips</em> que resumen filtros aplicados. Cada chip permite deshabilitar temporalmente su efecto sin borrar valores, o eliminar el filtro completamente.</p>
+    </section>
+
+    <section id="modos">
+      <h2>Modos de mapa</h2>
+      <h3 id="modo-puntos">Puntos <span class="badge bg-primary badge-mode">MODO</span></h3>
+  <p>Se trazan marcadores individuales. Los colores representan rangos de año de caída. Permite inspección puntual y acceso a detalles y <strong>NORAD ID</strong>.</p>
+      <h3 id="modo-calor">Calor <span class="badge bg-danger badge-mode">MODO</span></h3>
+  <p>Comprime la densidad de puntos en una capa de calor. Ajustes disponibles: Radio, Difuminado e Intensidad. Útil para detectar zonas de concentración.</p>
+      <div class="callout">Cambiar entre modos no pierde filtros; simplemente varía la representación.</div>
+    </section>
+
+    <section id="busqueda-norad">
+      <h2>Búsqueda por NORAD ID</h2>
+      <p>El campo superior permite ingresar un número NORAD ID y centrar el mapa en el objeto correspondiente (si está visible con filtros actuales). Si el ID queda fuera por filtros, mostrará una alerta advirtiendo que no se encontró.</p>
+    </section>
+
+    <section id="leyenda">
+      <h2>Leyenda de colores (Puntos)</h2>
+      <div class="legend-block"><span class="legend-color" style="background:#1f78b4"></span>2004 a 2010</div>
+      <div class="legend-block"><span class="legend-color" style="background:#2e7d57"></span>2011 a 2017</div>
+      <div class="legend-block"><span class="legend-color" style="background:#d84315"></span>2018 a 2025</div>
+      <div class="legend-block"><span class="legend-color" style="background:#8c8c8c"></span>Antes de 2004</div>
+      <p>Los rangos son configurables en el código y buscan resaltar periodos recientes vs. históricos.</p>
+    </section>
+
+    <section id="informe">
+      <h2>Generación de informe</h2>
+  <p>El botón <strong>Generar informe</strong> abre un panel con gráficos resumidos (por año, clase, masa y tiempo en órbita) y una vista de puntos. Podés <strong>exportarlo a PDF</strong> para compartir.</p>
+    </section>
+
+    <section id="orbita">
+      <h2>Trayectoria y órbita 3D</h2>
+      <p>Para algunos objetos se puede generar una <strong>vista 3D ilustrativa</strong> con parámetros orbitales recientes (TLE). Es orientativa y <strong>no</strong> representa posiciones en tiempo real.</p>
+    </section>
+
+    <section id="rendimiento">
+      <h2>Rendimiento</h2>
+      <p>La carga puede demorar en dispositivos con poca memoria. Si tenés problemas, probá reducir filtros o cambiar al modo Puntos.</p>
+    </section>
+
+    <section id="limitaciones">
+      <h2>Limitaciones y advertencias</h2>
+      <div class="disclaimer">
+        <ul class="mb-0">
+          <li><u><strong>El mapa no muestra todos los reingresos ocurridos.</strong></u> Solo incluye aquellos con información confiable y localizada.</li>
+          <li><strong>Uso educativo y exploratorio.</strong> No emplear para navegación ni decisiones críticas.</li>
+          <li>Las posiciones pueden ser aproximadas o agregadas; la capa de calor es una representación de densidad.</li>
+          <li>La búsqueda por NORAD puede no encontrar objetos ocultos por filtros o no presentes en la muestra.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="owner-codes">
+      <h2>Códigos Space‑Track de país/organismo</h2>
+      <p>Esta referencia muestra únicamente los <strong>códigos “OWNER”</strong> que aparecen en la base de datos cargada (<code>data/debris.json</code>), para que se actualice automáticamente cuando el dataset cambie. Fuente: <a href="https://www.space-track.org/" target="_blank" rel="noopener">Space‑Track</a>.</p>
+      <div id="owner-index" class="owner-index"></div>
+      <div id="owner-content"></div>
+    </section>
+
+    <hr class="mt-5"/>
+    <p class="small text-muted">Versión de documentación: 1.0 • Última actualización: Nov 2025 • © CIEE</p>
+  </main>
+  <script>
+  // Construye dinámicamente la referencia de códigos OWNER según los registros presentes.
+  (function(){
+    const ownerMap = {
+      "AB":"ARAB SATELLITE COMMUNICATIONS ORGANIZATION",
+      "ABS":"ABS Global Ltd",
+      "ABW":"Aruba",
+      "AC":"ASIASAT CORP",
+      "AFG":"Afghanistan",
+      "AGO":"REPUBLIC OF ANGOLA",
+      "AIA":"Anguilla",
+      "ALA":"Åland Islands",
+      "ALB":"Albania",
+      "ALG":"ALGERIA",
+      "AND":"Andorra",
+      "ARGN":"ARGENTINA",
+      "ARM":"Armenia",
+      "ASM":"American Samoa",
+      "ASRA":"AUSTRIA",
+      "ATF":"French Southern Territories",
+      "ATG":"Antigua and Barbuda",
+      "AUS":"AUSTRALIA",
+      "AZE":"Azerbaijan",
+      "AZER":"AZERBAIJAN",
+      "BDI":"Burundi",
+      "BEL":"BELGIUM",
+      "BELA":"BELARUS",
+      "BEN":"Benin",
+      "BERM":"BERMUDA",
+      "BES":"Bonaire, Sint Eustatius and Saba",
+      "BFA":"Burkina Faso",
+      "BGD":"PEOPLES REPUBLIC OF BANGLADESH",
+      "BGR":"REPUBLIC OF BULGARIA",
+      "BHR":"Bahrain",
+      "BHS":"Bahamas",
+      "BIH":"Bosnia and Herzegovina",
+      "BLM":"Saint Barthélemy",
+      "BLZ":"Belize",
+      "BOL":"BOLIVIA",
+      "BRAZ":"BRAZIL",
+      "BRB":"Barbados",
+      "BRN":"Brunei Darussalam",
+      "BTN":"Bhutan",
+      "BVT":"Bouvet Island",
+      "BWA":"Botswana",
+      "CA":"CANADA",
+      "CAF":"Central African Republic",
+      "CCK":"Cocos (Keeling) Islands",
+      "CHBZ":"PEOPLES REPUBLIC OF CHINA/BRAZIL",
+      "CHL":"Chile",
+      "CHLE":"CHILE",
+      "CHN":"China",
+      "CIS":"COMMONWEALTH OF INDEPENDENT STATES",
+      "CIV":"Côte d'Ivoire",
+      "CMR":"Cameroon",
+      "COD":"Democratic Republic of the Congo",
+      "COG":"Congo",
+      "COK":"Cook Islands",
+      "COL":"COLOMBIA",
+      "COM":"Comoros",
+      "CPV":"Cabo Verde",
+      "CRI":"REPUBLIC OF COSTA RICA",
+      "CUB":"Cuba",
+      "CUW":"Curaçao",
+      "CXR":"Christmas Island",
+      "CYM":"Cayman Islands",
+      "CYP":"Cyprus",
+      "CZCH":"CZECHOSLOVAKIA",
+      "CZE":"Czechia",
+      "DEN":"DENMARK",
+      "DJI":"Djibouti",
+      "DMA":"Dominica",
+      "DOM":"Dominican Republic",
+      "ECU":"ECUADOR",
+      "EGY":"Egypt",
+      "EGYP":"EGYPT",
+      "ERI":"Eritrea",
+      "ESA":"EUROPEAN SPACE AGENCY",
+      "ESH":"Western Sahara",
+      "ESRO":"EUROPEAN SPACE RESEARCH ORGANIZATION",
+      "EST":"ESTONIA",
+      "ETH":"FEDERAL DEMOCRATIC REPUBLIC OF ETHIOPIA",
+      "EUME":"EUROPEAN ORGANIZATION FOR THE EXPLOITATION OF METEOROLOGICAL SATELLITES",
+      "EUTE":"EUROPEAN TELECOMMUNICATIONS SATELLITE ORGANIZATION (EUTELSAT)",
+      "FGER":"FRANCE/GERMANY",
+      "FIN":"FINLAND",
+      "FJI":"Fiji",
+      "FLK":"Falkland Islands (Malvinas)",
+      "FR":"FRANCE",
+      "FRG":"FEDERAL REPUBLIC OF GERMANY",
+      "FRIT":"FRANCE/ITALY",
+      "FRO":"Faroe Islands",
+      "FRRG":"FRANCE/FEDERAL REPUBLIC OF GERMANY",
+      "FSM":"Micronesia (Federated States of)",
+      "GAB":"Gabon",
+      "GEO":"Georgia",
+      "GER":"GERMANY",
+      "GGY":"Guernsey",
+      "GHA":"REPUBLIC OF GHANA",
+      "GIB":"Gibraltar",
+      "GIN":"Guinea",
+      "GLOB":"GLOBALSTAR",
+      "GLP":"Guadeloupe",
+      "GMB":"Gambia",
+      "GNB":"Guinea-Bissau",
+      "GNQ":"Equatorial Guinea",
+      "GRD":"Grenada",
+      "GREC":"GREECE",
+      "GRL":"Greenland",
+      "GTM":"Guatemala",
+      "GUF":"French Guiana",
+      "GUM":"Guam",
+      "GUY":"Guyana",
+      "HKG":"Hong Kong",
+      "HMD":"Heard Island and McDonald Islands",
+      "HND":"Honduras",
+      "HRV":"Croatia",
+      "HTI":"Haiti",
+      "HUN":"HUNGARY",
+      "IM":"INTERNATIONAL MARITIME SATELLITE ORGANIZATION (INMARSAT)",
+      "IMN":"Isle of Man",
+      "IND":"INDIA",
+      "INDO":"INDONESIA",
+      "INMA":"INTERNATIONAL MARITIME SATELLITE ORGANIZATION (INMARSAT)",
+      "IOT":"British Indian Ocean Territory",
+      "IRAN":"IRAN",
+      "IRAQ":"IRAQ",
+      "IRID":"IRIDIUM",
+      "IRL":"Ireland",
+      "IRQ":"Iraq",
+      "ISL":"Iceland",
+      "ISRA":"ISRAEL",
+      "ISRO":"INDIA SPACE RESEARCH ORGANIZATION",
+      "ISS":"INTERNATIONAL SPACE STATION",
+      "IT":"ITALY",
+      "ITSO":"INTERNATIONAL TELECOMMUNICATIONS SATELLITE ORGANIZATION (INTELSAT)",
+      "JAM":"Jamaica",
+      "JEY":"Jersey",
+      "JOR":"HASHEMITE KINGDOM OF JORDAN",
+      "JPN":"JAPAN",
+      "KAZ":"KAZAKHSTAN",
+      "KEN":"REPUBLIC OF KENYA",
+      "KGZ":"Kyrgyzstan",
+      "KHM":"Cambodia",
+      "KIR":"Kiribati",
+      "KNA":"Saint Kitts and Nevis",
+      "KOR":"KOREA",
+      "KWT":"Kuwait",
+      "LAOS":"LAOS",
+      "LBN":"Lebanon",
+      "LBR":"Liberia",
+      "LBY":"Libya",
+      "LCA":"Saint Lucia",
+      "LIE":"Liechtenstein",
+      "LKA":"DEMOCRATIC SOCIALIST REPUBLIC OF SRI LANKA",
+      "LSO":"Lesotho",
+      "LTU":"LITHUANIA",
+      "LUXE":"LUXEMBOURG",
+      "LVA":"LATVIA",
+      "MA":"MOROCCO",
+      "MAC":"Macao",
+      "MAF":"Saint Martin (French part)",
+      "MALA":"MALAYSIA",
+      "MCO":"Monaco",
+      "MDA":"Moldova, Republic of",
+      "MDG":"Madagascar",
+      "MDV":"Maldives",
+      "MEX":"MEXICO",
+      "MHL":"Marshall Islands",
+      "MKD":"North Macedonia",
+      "MLI":"Mali",
+      "MLT":"Malta",
+      "MMR":"REPUBLIC OF THE UNION OF MYNAMAR",
+      "MNE":"Montenegro",
+      "MNG":"MONGOLIA",
+      "MNP":"Northern Mariana Islands",
+      "MOZ":"Mozambique",
+      "MRT":"Mauritania",
+      "MSR":"Montserrat",
+      "MTQ":"Martinique",
+      "MUS":"Mauritius",
+      "MWI":"Malawi",
+      "MYT":"Mayotte",
+      "NAM":"Namibia",
+      "NATO":"NORTH ATLANTIC TREATY ORGANIZATION",
+      "NCL":"New Caledonia",
+      "NER":"Niger",
+      "NETH":"NETHERLANDS",
+      "NFK":"Norfolk Island",
+      "NIC":"Nicaragua",
+      "NICO":"NEW ICO",
+      "NIG":"NIGERIA",
+      "NIU":"Niue",
+      "NKOR":"NORTH KOREA",
+      "NOR":"NORWAY",
+      "NPL":"FEDERAL DEMOCRATIC REPUBLIC OF NEPAL",
+      "NRU":"Nauru",
+      "NZ":"NEW ZEALAND",
+      "O3B":"O3B NETWORKS",
+      "OMN":"Oman",
+      "ORB":"ORBITAL TELECOMMUNICATIONS SATELLITE (GLOBALSTAR)",
+      "PAKI":"PAKISTAN",
+      "PAN":"Panama",
+      "PCN":"Pitcairn",
+      "PER":"PERU",
+      "PLW":"Palau",
+      "PNG":"Papua New Guinea",
+      "POL":"POLAND",
+      "POR":"PORTUGAL",
+      "PRC":"PEOPLES REPUBLIC OF CHINA",
+      "PRES":"PEOPLES REPUBLIC OF CHINA/EUROPEAN SPACE AGENCY",
+      "PRI":"Commonwealth of Puerto Rico",
+      "PRY":"REPUBLIC OF PARAGUAY",
+      "PYF":"French Polynesia",
+      "QAT":"STATE OF QATAR",
+      "RASC":"REGIONAL AFRICAN SATELLITE COMMUNICATIONS ORG",
+      "REU":"Réunion",
+      "ROM":"ROMANIA",
+      "RP":"REPUBLIC OF PHILIPPINES",
+      "RWA":"REPUBLIC OF RWANDA",
+      "SAFR":"SOUTH AFRICA",
+      "SAUD":"SAUDI ARABIA",
+      "SDN":"REPUBLIC OF SUDAN",
+      "SEAL":"SEA LAUNCH DEMO",
+      "SEN":"Senegal",
+      "SES":"SOCIÉTÉ EUROPÉENNE DES SATELLITES",
+      "SGS":"South Georgia and the South Sandwich Islands",
+      "SHN":"Saint Helena, Ascension and Tristan da Cunha",
+      "SING":"SINGAPORE",
+      "SJM":"Svalbard and Jan Mayen",
+      "SKOR":"SOUTH KOREA",
+      "SLB":"Solomon Islands",
+      "SLE":"Sierra Leone",
+      "SLV":"El Salvador",
+      "SMR":"San Marino",
+      "SOM":"Somalia",
+      "SPM":"Saint Pierre and Miquelon",
+      "SPN":"SPAIN",
+      "SRB":"Serbia",
+      "SSD":"South Sudan",
+      "STCT":"SINGAPORE/TAIWAN",
+      "STP":"Sao Tome and Principe",
+      "SUR":"Suriname",
+      "SVK":"Slovakia",
+      "SVN":"REPUBLIC OF SLOVENIA",
+      "SWED":"SWEDEN",
+      "SWTZ":"SWITZERLAND",
+      "SWZ":"Eswatini",
+      "SXM":"Sint Maarten (Dutch part)",
+      "SYC":"Seychelles",
+      "SYR":"Syrian Arab Republic",
+      "TBD":"TO BE DETERMINED/UNKNOWN",
+      "TCA":"Turks and Caicos Islands",
+      "TCD":"Chad",
+      "TGO":"Togo",
+      "THAI":"THAILAND",
+      "TJK":"Tajikistan",
+      "TKL":"Tokelau",
+      "TKM":"TURKMENISTAN",
+      "TLS":"Timor-Leste",
+      "TMMC":"TURKMENISTAN/MONACO",
+      "TON":"Tonga",
+      "TTO":"Trinidad and Tobago",
+      "TUN":"REPUBLIC OF TUNISIA",
+      "TURK":"TURKEY",
+      "TUV":"Tuvalu",
+      "TWN":"TAIWAN",
+      "TZA":"Tanzania, United Republic of",
+      "UAE":"UNITED ARAB EMIRATES",
+      "UGA":"Uganda",
+      "UK":"UNITED KINGDOM",
+      "UKR":"UKRAINE",
+      "UMI":"United States Minor Outlying Islands",
+      "UNKN":"UNKNOWN",
+      "URY":"URUGUAY",
+      "US":"UNITED STATES OF AMERICA",
+      "USBZ":"UNITED STATES/BRAZIL",
+      "USSR":"UNION OF SOVIET SOCIALIST REPUBLICS",
+      "UZB":"Uzbekistan",
+      "VAT":"Holy See",
+      "VCT":"Saint Vincent and the Grenadines",
+      "VENZ":"VENEZUELA",
+      "VGB":"Virgin Islands (British)",
+      "VIR":"Virgin Islands (U.S.)",
+      "VTNM":"VIETNAM",
+      "VUT":"Vanuatu",
+      "WLF":"Wallis and Futuna",
+      "WSM":"Samoa",
+      "YEM":"Yemen",
+      "ZMB":"Zambia",
+      "ZWE":"Zimbabwe"
+    };
+
+    function groupByFirstLetter(arr){
+      const groups = {};
+      arr.forEach(code => {
+        const letter = code[0].toUpperCase();
+        if(!groups[letter]) groups[letter] = [];
+        groups[letter].push(code);
+      });
+      Object.keys(groups).forEach(k => groups[k].sort());
+      return groups;
+    }
+
+    function render(ownerCodes){
+      const indexEl = document.getElementById('owner-index');
+      const contentEl = document.getElementById('owner-content');
+      if(!indexEl || !contentEl) return;
+      const groups = groupByFirstLetter(ownerCodes);
+      // Índice por letra
+      indexEl.innerHTML = Object.keys(groups).sort().map(letter => `<a href="#owner-${letter}">${letter}</a>`).join('');
+      // Contenido por letra
+      contentEl.innerHTML = Object.keys(groups).sort().map(letter => {
+        const rows = groups[letter].map(code => {
+          const name = ownerMap[code] || 'Código no documentado (Space‑Track)';
+          return `<tr><td style="width:120px"><code>${code}</code></td><td>${name}</td></tr>`;
+        }).join('');
+        return `
+          <div class="owner-group">
+            <h3 id="owner-${letter}">Códigos que comienzan con “${letter}”</h3>
+            <table class="owner-table">
+              <thead><tr><th>Código</th><th>Entidad / País</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        `;
+      }).join('');
+    }
+
+    fetch('data/debris.json')
+      .then(r => r.json())
+      .then(data => {
+        const present = Array.from(new Set((data || []).map(d => d && d.pais).filter(Boolean)));
+        if(!present.length){
+          document.getElementById('owner-content').innerHTML = '<p class="text-muted">No hay códigos en el dataset cargado.</p>';
+          return;
+        }
+        // Filtramos a los que tenemos descripción conocida o los mostramos como "no documentado".
+        present.sort();
+        render(present);
+      })
+      .catch(() => {
+        const fallback = '<p class="text-muted">No se pudo cargar el dataset para construir la referencia de códigos.</p>';
+        const el = document.getElementById('owner-content');
+        if(el) el.innerHTML = fallback;
+      });
+  })();
+  </script>
+</body>
+</html>
