@@ -22,6 +22,7 @@ let _leafletHeatLoadPromise = null;
 let _listenersInitialized = false;
 const disabledFilters = new Set(); // guarda keys de filtros desactivados via chips
 let markersByNorad = {}; // índice norad -> marker
+let noradIndex = []; // índice rápido para autocompletar NORAD
 
 // --- Utilidades UI: alertas simples en el sidebar ---
 function showAlert(message, type = 'warning', timeoutMs = 6000) {
@@ -286,6 +287,15 @@ capaPuntos = L.layerGroup().addTo(mapa);
     console.warn("No se pudo cargar data/debris.json:", e);
     showAlert('No se pudieron cargar los datos (data/debris.json). Si abriste el archivo con doble clic, usa un servidor local o sube a GitHub Pages.', 'danger', 10000);
   }
+  // construir índice de búsqueda NORAD
+  noradIndex = debris
+    .filter(d => d.norad_id || d.NORAD || d.norad || d.id_norad)
+    .map(d => ({
+      norad: String(d.norad_id || d.NORAD || d.norad || d.id_norad).trim(),
+      pais: d.pais || d.country || "",
+      clase: d.clase_objeto || d.tipo || "",
+      nombre: d.nombre || d.name || ""
+    }));
   poblarDropdown("dropdownPaisMenu", "dropdownPaisBtn", valoresUnicos(debris.map(d=>d.pais)), "Todos");
   poblarDropdown("dropdownClaseMenu", "dropdownClaseBtn", valoresUnicos(debris.map(d=>d.clase_objeto)), "Todas");
   listeners();
@@ -773,8 +783,6 @@ function listeners(){
   });
   const btnInforme = document.getElementById('btn-informe');
   if (btnInforme) btnInforme.addEventListener('click', abrirInforme);
-  const dlPDF = document.getElementById('dlPDF');
-  if (dlPDF) dlPDF.addEventListener('click', exportInformePDF);
   _listenersInitialized = true;
 }
 
@@ -1279,4 +1287,60 @@ document.addEventListener('click',(e)=>{
 });
 document.addEventListener('keydown',(e)=>{
   if (e.key === 'Enter' && document.activeElement === document.getElementById('norad-search-input')) buscarNorad();
+});
+
+// ================== NORAD Autocomplete ==================
+function filtrarNorad(query){
+  const q = (query || '').trim();
+  if (!q) return [];
+  if (/^\d+$/.test(q)){
+    return noradIndex.filter(n => n.norad.startsWith(q));
+  }
+  const lower = q.toLowerCase();
+  return noradIndex.filter(n =>
+    (n.nombre && n.nombre.toLowerCase().includes(lower)) ||
+    (n.clase && n.clase.toLowerCase().includes(lower)) ||
+    (n.pais && n.pais.toLowerCase().includes(lower))
+  );
+}
+
+function renderNoradSuggestions(matches){
+  const list = document.getElementById('norad-suggestions');
+  if (!list) return;
+  if (!matches || !matches.length){
+    list.style.display = 'none';
+    list.innerHTML = '';
+    return;
+  }
+  list.innerHTML = matches.slice(0,30).map(m=>
+    `<li class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" data-norad="${m.norad}">
+      <span class="fw-semibold">${m.norad}</span>
+      <span class="text-muted small">${[m.nombre, m.clase, m.pais].filter(Boolean).join(' · ')}</span>
+    </li>`
+  ).join('');
+  list.style.display = '';
+}
+
+document.addEventListener('input',(e)=>{
+  if (e.target && e.target.id === 'norad-search-input'){
+    const matches = filtrarNorad(e.target.value);
+    renderNoradSuggestions(matches);
+  }
+});
+
+document.addEventListener('click',(e)=>{
+  const list = document.getElementById('norad-suggestions');
+  if (!list) return;
+  const li = e.target.closest ? e.target.closest('#norad-suggestions li') : null;
+  if (li){
+    const code = li.getAttribute('data-norad');
+    const input = document.getElementById('norad-search-input');
+    if (input) input.value = code;
+    list.style.display = 'none';
+    buscarNorad();
+    return;
+  }
+  if (!e.target.closest || !e.target.closest('#norad-search-box')){
+    list.style.display = 'none';
+  }
 });
