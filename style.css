@@ -28,7 +28,9 @@
 /* ----------- BASE DE LA APP ----------- */
 html, body {
   height: 100%;
-  margin: 0; padding: 0; overflow-x: hidden !important;
+  margin: 0;
+  padding: 0;
+  overflow: hidden; /* nada de scroll ni franjas extra */
   font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
   background: var(--color-bg) !important; color: var(--color-text);
   box-sizing: border-box;
@@ -59,32 +61,30 @@ body > .container-fluid { width: 100vw !important; max-width: 100vw !important; 
 #filter-form .form-select, #filter-form .form-control { font-size: 0.93rem; padding: 0.25rem 0.5rem; border-radius: 0.5rem; margin-bottom: 0.7rem; }
 .sidebar-logo { max-width: 180px; display: block; margin: 0 auto 0.5rem auto; }
 
-#main-col { min-height: 100vh; padding: 0 !important; }
+#main-col { padding: 0 !important; }
 #main-col {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  position: relative; /* permite posicionar el buscador NORAD absolutemente dentro */
-}
-@supports (height: 100dvh) {
-  #main-col { height: 100dvh; }
+  height: 100vh; /* ocupa exactamente el alto de la ventana */
+  position: relative;
 }
 #active-filters { flex: 0 0 auto; }
 #map {
   flex: 1 1 auto;
   width: 100%;
-  height: auto;
-  min-height: 0; /* permite que flex calcule sin overflow */
+  height: 100%;
   box-sizing: border-box;
   background: var(--color-bg);
-  overflow: hidden; /* evitar scrollbar interno */
+  overflow: hidden;
 }
 
 .btn-primary, .btn-secondary { transition: background var(--transition-fast), box-shadow var(--transition-fast); font-weight: 600; border-radius: 0.6rem; font-size: 1rem; box-shadow: var(--shadow-sm); margin-bottom: 0.5rem; }
 .btn-primary.active, .btn-secondary.active { box-shadow: 0 4px 16px rgba(44,62,80,0.10); outline: 2px solid #0056b3; }
 .btn-primary:focus, .btn-secondary:focus { outline: none; box-shadow: 0 0 0 0.15rem #007bff66; }
 
-#footer-ciee { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); font-size: 0.75rem; color: var(--color-text-muted); z-index: 9999; background: rgba(255,255,255,0.93); padding: 4px 10px; border-radius: var(--radius-sm); border: 1px solid var(--color-border); box-shadow: var(--shadow-sm); text-align: center; margin: 0 auto; width: fit-content; max-width: 98vw; overflow-x: auto; }
+#footer-ciee {
+  display: none; /* oculto totalmente para que no genere barra */
+}
 #footer-ciee a { color: #007bff; text-decoration: underline; }
 
 @media (max-width: 768px) {
@@ -201,13 +201,6 @@ body > .container-fluid { width: 100vw !important; max-width: 100vw !important; 
 }
 
 /* ----------- BOTONES DEL MODAL ----------- */
-#dlPDF.btn-success {
-  font-weight: 600;
-  border-radius: 0.5rem;
-  font-size: 1rem;
-  margin-right: 0.5rem;
-  box-shadow: 0 2px 8px rgba(44,62,80,0.07);
-}
 .btn-secondary[data-bs-dismiss="modal"] {
   border-radius: 0.5rem;
   font-size: 1rem;
@@ -442,6 +435,22 @@ h5, h6 {
 /* ================== Acciones flotantes (buscador + ayuda) ================== */
 .top-actions { position: absolute; top: 10px; right: 16px; z-index: 600; }
 .norad-area { gap: 4px; }
+/* ajustes visuales para el dropdown de sugerencias NORAD */
+#norad-search-box {
+  max-width: 220px;
+}
+#norad-suggestions {
+  font-size: 0.72rem;
+}
+#norad-suggestions .list-group-item {
+  padding: 0.15rem 0.45rem;
+}
+#norad-suggestions .fw-semibold {
+  font-size: 0.72rem;
+}
+#norad-suggestions .text-muted.small {
+  font-size: 0.68rem;
+}
 #norad-search-box.norad-top {
   background: rgba(255,255,255,0.88);
   border: 1px solid var(--color-border);
