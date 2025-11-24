@@ -209,11 +209,12 @@
         <!-- Acciones superiores: buscador NORAD + ayuda (flotando sobre el mapa) -->
         <div id="top-actions" class="top-actions">
           <div class="norad-area d-flex flex-column align-items-end">
-            <div id="norad-search-box" class="norad-top" role="search" aria-label="Buscar NORAD ID">
+            <div id="norad-search-box" class="norad-top position-relative" role="search" aria-label="Buscar NORAD ID">
               <div class="input-group input-group-sm">
-                <input type="text" class="form-control" id="norad-search-input" placeholder="NORAD ID" aria-label="Campo búsqueda NORAD ID">
+                <input type="text" class="form-control" id="norad-search-input" placeholder="NORAD ID" aria-label="Campo búsqueda NORAD ID" autocomplete="off">
                 <button class="btn btn-outline-primary" id="norad-search-btn" type="button">Buscar</button>
               </div>
+              <ul id="norad-suggestions" class="list-group" style="position:absolute;top:100%;left:0;right:0;z-index:1050;max-height:220px;overflow-y:auto;display:none;"></ul>
             </div>
             <a href="help.html" target="_blank" rel="noopener" class="norad-help-link" title="Ayuda / Documentación" aria-label="Ayuda / Documentación">
               <i class="bi bi-question-circle"></i>
@@ -270,7 +271,6 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button id="dlPDF" class="btn btn-success">Exportar PDF</button>
         <button class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
       </div>
     </div>
