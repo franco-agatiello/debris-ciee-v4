@@ -572,17 +572,15 @@ function actualizarMapa(){
 
   leyendaPuntos.addTo(mapa);
 }
+
 function mostrarLeyendaPuntos(){
-  const anioActual = new Date().getFullYear();
-
-  leyendaPuntos = L.control({ position: 'bottomright' });
-
-  leyendaPuntos.onAdd = function(map){
-    const div = L.DomUtil.create('div','info legend');
-    div.innerHTML += `<strong>Color del marcador según año de caída</strong><br>`;
-    div.innerHTML += `<img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png" style="width:13px;vertical-align:middle;"> <span style="color:#999">2004 a 2010</span><br>`;
-    div.innerHTML += `<img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png" style="width:13px;vertical-align:middle;"> <span style="color:#999">2011 a 2017</span><br>`;
-    div.innerHTML += `<img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png" style="width:13px;vertical-align:middle;"> <span style="color:#999">2018 a ${anioActual}</span><br>`;
+  leyendaPuntos=L.control({position:'bottomright'});
+  leyendaPuntos.onAdd=function(map){
+    const div=L.DomUtil.create('div','info legend');
+    div.innerHTML+=`<strong>Color del marcador según año de caída</strong><br>`;
+    div.innerHTML+=`<img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png" style="width:13px;vertical-align:middle;"> <span style="color:#999">2004 a 2010</span><br>`;
+    div.innerHTML+=`<img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png" style="width:13px;vertical-align:middle;"> <span style="color:#999">2011 a 2017</span><br>`;
+    div.innerHTML+=`<img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png" style="width:13px;vertical-align:middle;"> <span style="color:#999">2018 a Presente</span><br>`;
     return div;
   };
   leyendaCalor.addTo(mapa);
