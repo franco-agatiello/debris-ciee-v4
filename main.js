@@ -404,8 +404,7 @@ function marcadorPorFecha(fecha) {
   const year = parseInt(String(fecha ?? "").slice(0,4),10);
   if (year >= 2004 && year <= 2010) return iconoAzul;
   if (year >= 2011 && year <= 2017) return iconoVerde;
-  if (year >= 2018 && year <= 2026) return iconoRojo;
-  return iconoAmarillo;
+  return iconoRojo;
 }
 
 function getNoradId(d){
