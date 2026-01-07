@@ -404,7 +404,8 @@ function marcadorPorFecha(fecha) {
   const year = parseInt(String(fecha ?? "").slice(0,4),10);
   if (year >= 2004 && year <= 2010) return iconoAzul;
   if (year >= 2011 && year <= 2017) return iconoVerde;
-  return iconoRojo;
+  if (year >= 2018 && year <= 2026) return iconoRojo;
+  return iconoAmarillo;
 }
 
 function getNoradId(d){
@@ -569,10 +570,6 @@ function actualizarMapa(){
   construirChipsFiltros();
 }
 
-
-  leyendaPuntos.addTo(mapa);
-}
-
 function mostrarLeyendaPuntos(){
   leyendaPuntos=L.control({position:'bottomright'});
   leyendaPuntos.onAdd=function(map){
@@ -580,7 +577,22 @@ function mostrarLeyendaPuntos(){
     div.innerHTML+=`<strong>Color del marcador según año de caída</strong><br>`;
     div.innerHTML+=`<img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png" style="width:13px;vertical-align:middle;"> <span style="color:#999">2004 a 2010</span><br>`;
     div.innerHTML+=`<img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png" style="width:13px;vertical-align:middle;"> <span style="color:#999">2011 a 2017</span><br>`;
-    div.innerHTML+=`<img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png" style="width:13px;vertical-align:middle;"> <span style="color:#999">2018 a Presente</span><br>`;
+    div.innerHTML+=`<img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png" style="width:13px;vertical-align:middle;"> <span style="color:#999">2018 a 2025</span><br>`;
+    div.innerHTML+=`<img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-yellow.png" style="width:13px;vertical-align:middle;"> <span style="color:#999">Antes de 2004</span><br>`;
+    return div;
+  };
+  leyendaPuntos.addTo(mapa);
+}
+function mostrarLeyendaCalor(){
+  leyendaCalor=L.control({position:'bottomright'});
+  leyendaCalor.onAdd=function(map){
+    const div=L.DomUtil.create('div','info legend');
+    const grades=['Bajo','Medio','Alto','Muy alto'];
+    const colors=['blue','lime','yellow','red'];
+    div.innerHTML+='<strong>Densidad de caídas</strong><br>';
+    for(let i=0;i<grades.length;i++){
+      div.innerHTML+=`<i style="background:${colors[i]};width:14px;height:14px;display:inline-block;margin-right:5px;border-radius:2px;"></i> ${grades[i]}<br>`;
+    }
     return div;
   };
   leyendaCalor.addTo(mapa);
