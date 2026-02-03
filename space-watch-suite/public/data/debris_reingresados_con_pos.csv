@@ -1,0 +1,7 @@
+norad_id,nombre,clase_objeto,pais,fecha,lat_caida,lon_caida,masa_en_orbita
+3145,ATLAS AGENA D R/B,Rocket Body,US,2011-01-18,45.0,-87.0,600
+12388,SL-16 R/B,Rocket Body,CIS,2015-03-15,-25.3,140.5,1200
+22285,COSMOS 2251,Payload,CIS,2009-02-10,64.9,-150.8,900
+37756,FENGYUN 1C,Payload,PRC,2007-01-11,-10.2,95.3,750
+43899,LONG MARCH 5B R/B,Rocket Body,PRC,2021-05-09,2.1,72.4,18000
+44397,LONG MARCH 5B R/B,Rocket Body,PRC,2022-07-30,5.5,119.0,17000
