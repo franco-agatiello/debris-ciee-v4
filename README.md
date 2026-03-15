@@ -2,6 +2,8 @@
 
 Este proyecto es un dashboard web estático (HTML/JS/CSS) que muestra reentradas de debris sobre un mapa (Leaflet), con modos de Puntos y Calor, filtros, y generación de informe (Chart.js + jsPDF) y vistas adicionales (Trayectoria/Órbita 3D con three.js + satellite.js).
 
+https://franco-agatiello.github.io/debris-ciee-v4/
+
 ## Características clave
 
 - Mapa Leaflet con dos representaciones: Puntos y Calor (leaflet.heat) con controles de radio/blur/intensidad.
